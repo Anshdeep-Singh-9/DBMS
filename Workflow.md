@@ -13,7 +13,7 @@
 >* Claim it or leave it for others
 
 ## Step-3:
-### Create a temp branch for the issue that you working on. Do the changes, then create a pull request from your temp branch to the main branch. **Never commit to the main branch directly**.
+### Create a temp branch for the issue that you are working on. Do the changes, then create a pull request from your temp branch to the main branch. **Never commit to the main branch directly**.
 Steps to create a temp branch
 >* git checkout -b \<temp-branch-name\>
 
