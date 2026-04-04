@@ -39,6 +39,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <iomanip>
+#include <termio.h>
 
 #include <vector>
 #include <algorithm>
