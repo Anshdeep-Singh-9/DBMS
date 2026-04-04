@@ -138,6 +138,30 @@ void start_system(){
 	input();
 }
 
+string get_password(){
+	
+	struct termios termios_p;
+
+	//Fetch the attributes of the current terminal window.
+	tcgetattr(STDIN_FILENO, &termios_p);
+	
+	//Unset the ECHO flag so that user input isn't displayed on the terminal window.
+	termios_p.c_lflag &= ~ECHO;
+	
+	tcsetattr(STDIN_FILENO, TCSANOW, &termios_p);
+
+	cout<<"Enter Password: ";
+	string pass;
+	cin>>pass;
+
+	//Set the ECHO flag back.
+	termios_p.c_lflag |= ECHO;
+
+	tcsetattr(STDIN_FILENO, TCSANOW, &termios_p);
+
+	cout<<"\n";
+	return pass;
+}
 
 int main(int argc,char *argv[]) {
 	//cout << "!!!Hello World!!!" << endl; // prints !!!Hello World!!!
@@ -149,10 +173,11 @@ int main(int argc,char *argv[]) {
 			//check identification
 			char *username = (char*)malloc(sizeof(char)*MAX_NAME);
 			strcpy(username,argv[2]);
-			const char *mypass="pass";
-			char *password=getpass("Enter password: ");
+			const string mypass="pass";
 
-			if(strcmp(password,mypass)==0) cout <<"Correct password!\n";
+			string password=get_password();
+
+			if(password == mypass) cout <<"Correct password!\n";
 			else {
 				cout <<"Incorrect password!\n";
 				return 0;
