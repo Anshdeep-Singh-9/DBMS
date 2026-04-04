@@ -78,4 +78,7 @@ You can contribute in following modules:
 	1. parser implementation
 	2. AES encryption of data, in branch dev-aes
 	3. Suggestion for more efficient implementation
+
+## Workflow:
+- [Workflow guide](Workflow.md)
  
