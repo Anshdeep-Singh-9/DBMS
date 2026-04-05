@@ -166,30 +166,23 @@ void create(){
 	std::cin >> count;
 	table *temp;
 	temp=create_table(name,count);
+
 	if(temp != NULL){
-	//calculate the size of the block
+	
+		//calculate the size of the block
 		temp->size=record_size(temp);
-		if(temp!=NULL){
-		temp->blockbuf = malloc(temp->BLOCKSIZE);
-		FILE *fpr;
-    fpr  = open_file(temp->name, const_cast<char*>("w"));
-    fwrite(temp->blockbuf, 1, temp->BLOCKSIZE, fp);
-    fclose(fpr);
-    store_meta_data(temp);
-    free(temp->blockbuf);
+		
+		store_meta_data(temp);
 		free(temp);
 
-		// if its a new table, make a entry inside table_list
 		fseek(fp,0,SEEK_END);
 		fprintf(fp,"%s\n",name);
 		fclose(fp);
 		free(name);
-	}else{
-		      printf("create_table inside CREATE function returned NULL\n");
-		       // return 1;
-		 }
-	 }else{
-		 //printf("\nwrong input\nexiting...\n\n");
-		 return;
-	 }
+
+	}
+	else{
+		cout<<"create_table returned NULL\n";
+		return;
+	}
 }
