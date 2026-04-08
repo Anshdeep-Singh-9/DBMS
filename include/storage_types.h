@@ -33,7 +33,7 @@ enum PageType {
 };
 
 /*
- * RID is the new logical row address.
+ * RID (Record ID) is the new logical row address. tuple -- > [ page_id , slot_id ] 
  *
  * Why this replaces record_number:
  * - it matches page-based storage
