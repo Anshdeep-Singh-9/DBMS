@@ -1,28 +1,3 @@
-/*
-// ----------------------------------------------------------------------
- // File    : create.cpp
- // Author  : Mandeep singh
- // Purpose : code for creating new tables
- //
- //
- // DeepDataBase, Copyright (C) 2015 - 2017
- //
- // This program is free software; you can redistribute it and/or
- // modify it under the terms of the GNU General Public License as
- // published by the Free Software Foundation; either version 2 of the
- // License, or (at your option) any later version.
- //
- // This program is distributed in the hope that it will be useful,
- // but WITHOUT ANY WARRANTY; without even the implied warranty of
- // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- // General Public License for more details.
- //
- // You should have received a copy of the GNU General Public License along
- // with this program; if not, write to the Free Software Foundation, Inc.,
- // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-
-// ----------------------------------------------------------------------
-*/
 
 #include "create.h"
 #include "file_handler.h"
@@ -166,30 +141,23 @@ void create(){
 	std::cin >> count;
 	table *temp;
 	temp=create_table(name,count);
+
 	if(temp != NULL){
-	//calculate the size of the block
+	
+		//calculate the size of the block
 		temp->size=record_size(temp);
-		if(temp!=NULL){
-		temp->blockbuf = malloc(temp->BLOCKSIZE);
-		FILE *fpr;
-    fpr  = open_file(temp->name, const_cast<char*>("w"));
-    fwrite(temp->blockbuf, 1, temp->BLOCKSIZE, fp);
-    fclose(fpr);
-    store_meta_data(temp);
-    free(temp->blockbuf);
+		
+		store_meta_data(temp);
 		free(temp);
 
-		// if its a new table, make a entry inside table_list
 		fseek(fp,0,SEEK_END);
 		fprintf(fp,"%s\n",name);
 		fclose(fp);
 		free(name);
-	}else{
-		      printf("create_table inside CREATE function returned NULL\n");
-		       // return 1;
-		 }
-	 }else{
-		 //printf("\nwrong input\nexiting...\n\n");
-		 return;
-	 }
+
+	}
+	else{
+		cout<<"create_table returned NULL\n";
+		return;
+	}
 }

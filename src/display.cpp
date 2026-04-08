@@ -1,28 +1,3 @@
-/*
-// ----------------------------------------------------------------------
- // File    : display.cpp
- // Author  : Mandeep singh
- // Purpose : code for displaying table contents
- //
- //
- // DeepDataBase, Copyright (C) 2015 - 2017
- //
- // This program is free software; you can redistribute it and/or
- // modify it under the terms of the GNU General Public License as
- // published by the Free Software Foundation; either version 2 of the
- // License, or (at your option) any later version.
- //
- // This program is distributed in the hope that it will be useful,
- // but WITHOUT ANY WARRANTY; without even the implied warranty of
- // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- // General Public License for more details.
- //
- // You should have received a copy of the GNU General Public License along
- // with this program; if not, write to the Free Software Foundation, Inc.,
- // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-
-// ----------------------------------------------------------------------
-*/
 
 #include "display.h"
 #include "file_handler.h"
@@ -234,3 +209,40 @@ void show_tables(){
 	printf("---------------------------\n");
 	free(name);
 }
+
+void display_meta_data(struct table* t_ptr){
+    cout<<"Table Name: "<<t_ptr->name<<endl<<endl;
+    cout<<"Table Attributes:\n\n";
+    for(int i=0; i<t_ptr->count; i++){
+        cout<<"name: "<<t_ptr->col[i].col_name<<endl;
+        cout<<"type: "<<((t_ptr->col[i].type == 1) ? "INT" : "VARCHAR")<<endl;
+        cout<<"size: "<<t_ptr->col[i].size<<endl<<endl;
+    }
+}
+
+void display_meta_data(){
+	string name;
+	cout<<"Enter the name of table: ";
+	cin>>name;
+	
+	if(name.empty()){
+		cout<<"ERROR! No name entered. Exiting!!!\n";
+		return;
+	}
+
+	struct table* t_ptr=fetch_meta_data(name);
+	if(t_ptr == NULL){
+		cout<<"ERROR! Table not found or failed to read metadata.\n";
+		return;
+	}
+    cout<<"Table Name: "<<t_ptr->name<<endl<<endl;
+    cout<<"Table Attributes:\n";
+    for(int i=0; i<t_ptr->count; i++){
+        cout<<"name: "<<t_ptr->col[i].col_name<<endl;
+        cout<<"type: "<<((t_ptr->col[i].type == 1) ? "INT" : "VARCHAR")<<endl;
+        cout<<"size: "<<t_ptr->col[i].size<<endl<<endl;
+    }
+    delete t_ptr;
+}
+
+

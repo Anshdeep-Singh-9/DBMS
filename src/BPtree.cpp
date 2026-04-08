@@ -1,10 +1,3 @@
-/*
-  // code references : DFC query builder by BUG_ASSASINS team
-  // File    : BPtree.cpp
-  // Author  : extra modifications and optimizations done by Mandeep Singh
-  // Purpose : store indexed data to disk
-*/
-
 #include "BPtree.h"
 
 class Btreenode

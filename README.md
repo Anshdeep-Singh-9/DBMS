@@ -1,84 +1,64 @@
-# DeepDataBase
+# 🗄️ MiniDB Engine (Relational Database from Scratch)
 
-#### A Relational database model, data storage based on B+ tree indexing
+> A simplified, custom-built relational database engine designed to replicate the core internal functionalities of modern Database Management Systems (DBMS). 
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Language: C++](https://img.shields.io/badge/Language-C++-blue.svg)](https://isocpp.org/)
+[![Build: Make](https://img.shields.io/badge/Build-Make-orange.svg)]()
 
-<img src="https://github.com/msdeep14/DeepDataBase/blob/master/images/deepdb.png" width="300" height="200" />
+Unlike projects that act as wrappers around existing databases (like SQLite or MySQL), this project is built entirely **from scratch**. It features custom implementation of disk-based storage management, B+ Tree indexing, LRU memory caching, and a homegrown query execution engine.
 
-*initial development* : [MiniDataBase](https://github.com/msdeep14/MiniDataBase)
+---
 
-References from - https://github.com/Bug-Assassins/DFC_query_builder
+## ✨ Key Features
 
-## QUERIES SUPPORTED BY SYSTEM
-1. SHOW Tables
-2. CREATE Table
-3. INSERT INTO Table
-4. DISPLAY Table contents
-5. SEARCH INTO Table
-6. DROP Table
+### 🛠️ Core Capabilities
+* **Custom Storage Engine:** Data is stored on the physical disk using block-based file storage. Each table is allocated separate files/directories to manage its blocks.
+* **B+ Tree Indexing:** Implements a multi-level B+ Tree structure for primary keys, enabling highly efficient $O(\log n)$ indexed lookups.
+* **Query Parser & Execution:** A custom SQL-like execution engine supporting `SELECT`, `INSERT`, `CREATE`, and `DROP` commands, alongside conditional filtering (`WHERE`, `=`, `<`, `>`, `AND`, `OR`).
+* **Metadata Management:** Maintains schema information (table names, column types, record counts) in dedicated, fast-access metadata files.
+* **Search Algorithms:** * *Indexed Search:* Ultra-fast lookups using B+ Tree traversal for primary keys.
+  * *Brute-Force Search:* Full table scans for non-indexed columns with execution time monitoring.
 
+### 🚀 Advanced Extensions (In Active Development)
+* **Buffer Pool Manager (LRU):** An in-memory caching system that minimizes disk I/O by keeping frequently accessed disk pages/blocks in RAM using a Least Recently Used (LRU) policy.
+* **Basic Join Support:** Implementation of Nested Loop Joins to support simple multi-table queries.
+* **Backend API Layer:** HTTP/TCP socket interface allowing external applications to connect and execute queries.
 
-## SYSTEM DESIGN
-The Database System is designed using C++ programming language.
-It stores the data on physical disk using files.
+---
 
-Features of system include:
+## 🏗️ System Architecture
 
-#### 1. Custom Blocks for each table:
-The data is stored in blocks.  
+1. **Storage Manager:** Handles raw disk read/writes, fetching data in fixed-size blocks rather than line-by-line to mimic real DBMS page architecture.
+2. **Buffer Manager:** Sits between the Storage Manager and the Execution Engine, caching pages in memory.
+3. **Index Manager:** Maintains the B+ Tree structures. Each node contains a maximum of 50 entries, splitting and merging dynamically as data is inserted or deleted.
+4. **Query Processor:** Parses incoming string queries into abstract syntax trees (ASTs) and plans the execution path.
 
-Benefits of block storage: [here](https://en.wikipedia.org/wiki/Block_(data_storage))
+---
 
-All the separate row data of a particular table is stored in different file creating blocks of data. System reads as well as writes data back to files in blocks.
+## 💻 Tech Stack
 
-#### 2. B+ Tree Indexing:
-A separate multilevel B+ tree is created for each table. Each node contains maximum of 50 entries. Right now data storage  is based only on primary key, primary key can be INTEGER or VARCHAR. By default, first column is choosen as primary key.
+* **Core Engine:** `C++` (Data Structures, File I/O, Memory Management)
+* **Networking (Upcoming):** C++ Sockets / Node.js HTTP Server
+* **Frontend Demo (Upcoming):** `React.js`
+* **Build System:** `Make` / `GCC`
 
-#### 3. Storing Meta Data of Tables:
-Meta Data of the tables are stored separately which provides quick access to several information like current number of records, table name, etc.
- 
-#### 4. Search:
+---
 
-##### 1. B+ Indexed Search
-For searching a record in file for particular table, B+ tree indexed search is implemented. B+ indexed search is based on primary key
- 
-##### 2. Brute Force Search
-For searching records without providing primary key from table, brute force search algorithm is implemented. You can display selected number of columns and limit results based on where clause(see section In Development below).
- 
-Advantages of B+ Tree Indexing [here](https://www.tutorialcup.com/dbms/b-plus-tree.htm)
- 
-System also calculates the time taken by the search algorithm.
- 
-## DEVELOPMENT:
-The whole project is initially done on eclipse platform(C/C++ perspective)-> in repo [MiniDataBase](https://github.com/msdeep14/MiniDataBase)
+## 📝 Supported SQL Queries
 
-Further modifications are done on Ubuntu System, [Atom](https://atom.io/) editor. Recent project is compiled on MacOS X.
+The system currently parses and executes the following SQL-like syntax:
 
-For execution: Open directory DeepDatabase(branch:master) and on terminal
+```sql
+-- DDL Commands
+SHOW TABLES;
+CREATE TABLE table_name (id INTEGER PRIMARY KEY, name VARCHAR);
+DROP TABLE table_name;
 
-1. Type **make clean** to clean all binary files.
-	
-2. Type **make**, it will compile the project.
-	
-3. Type **./deepdb -u user -p** for running project. Password is `pass`
+-- DML Commands
+INSERT INTO table_name VALUES (1, 'John Doe');
 
-## IN DEVELOPMENT:
-For displaying the table contents, you have to select option 5 from menu and the queries supported by it are, do care about syntax, since complete parser is not implemented.
-
-select * from table_name;
-
-select id,name from table_name;
-
-select id,name from table_name where id = 1;
-
-## CONTRIBUTE:
-You can contribute in following modules:
-
-	1. parser implementation
-	2. AES encryption of data, in branch dev-aes
-	3. Suggestion for more efficient implementation
-
-## Workflow:
-- [Workflow guide](Workflow.md)
- 
+-- DQL Commands (Data Querying)
+SELECT * FROM table_name;
+SELECT id, name FROM table_name;
+SELECT * FROM table_name WHERE id = 1;
+SELECT id, name FROM table_name WHERE id > 10 AND name = 'Alice';
