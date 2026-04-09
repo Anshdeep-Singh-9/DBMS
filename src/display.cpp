@@ -62,7 +62,7 @@ void display(char tab[], std::map<std::string, int> &display_col_list){
 		int count;
 		//int tot=0;
 		temp = (table*)malloc(sizeof(table));
-		FILE *fp = open_file(tab,const_cast<char*>("r"));
+		FilePtr fp = open_file_read(tab,const_cast<char*>("r"));
 		// table exists
 		// now check if entered columns are valid
 		if(display_col_list.find("all_columns_set") == display_col_list.end()){
@@ -116,7 +116,7 @@ void display(char tab[], std::map<std::string, int> &display_col_list){
 				char d[MAX_NAME];
 				//cout<<"C........"<<c<<endl;
 				for(int i=0;i<temp->rec_count;i++){
-						FILE *fpr;
+						FilePtr fpr;
 						char *str;
 						str=(char*)malloc(sizeof(char)*MAX_PATH);
 						sprintf(str, "table/%s/file%d.dat", tab, i);
@@ -151,7 +151,7 @@ void display(char tab[], std::map<std::string, int> &display_col_list){
 				char d1[MAX_NAME];
 				//cout<<"C........"<<c<<endl;
 				for(int i = 0; i < temp->rec_count; i++){
-						FILE *fpt;
+						FilePtr fpt;
 						char *str;
 						str = (char*)malloc(sizeof(char)*MAX_PATH);
 						sprintf(str,"table/%s/file%d.dat",tab,i);
@@ -200,7 +200,7 @@ void show_tables(){
 	printf("---------------------------\n");
 	int tabcount = 0;
 	name = (char*)malloc(sizeof(char)*MAX_NAME);
-	FILE *fp = fopen("./table/table_list","r+");
+	FilePtr fp = fopen("./table/table_list","r+");
 	while(fscanf(fp,"%s",name) != EOF){
 		tabcount++;
 		std::cout << name << "\n";

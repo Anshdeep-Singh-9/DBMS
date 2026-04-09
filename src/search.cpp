@@ -26,7 +26,7 @@ void search(){
 			printf("%s exists!!!\n\nEnter key to search\n\n",tab);
 			//open %s meta data file and display column details;
 			table inp1;
-			FILE *fp = open_file(tab, const_cast<char*>("r"));
+			FilePtr fp = open_file_read(tab, const_cast<char*>("r"));
      		 int i=0;
 			while(fread(&inp1,sizeof(table),1,fp)){
 				for(i=0;i<inp1.count;i++){
@@ -51,7 +51,7 @@ void search(){
 				 	 //printf("\nSearch (%d) exists -> record num = %d", pri_int, ret);
 				 	 printf("\n %d exists \n\n",pri_int);
 				 	 //print the details of the particular row;
-				 	FILE *fpz;
+				 	FilePtr fpz;
 				 	char *str1;
 					printf("\n------------------------------------\n");
 				 	str1=(char*)malloc(sizeof(char)*MAX_PATH);
@@ -89,7 +89,7 @@ void search(){
 				    printf("\n%s exists\n\n",pri_char);
 
 				    //print the details of the particular row;
-				   	FILE *fpz;
+				   	FilePtr fpz;
 				   	char *str1;
 				   	str1=(char*)malloc(sizeof(char)*MAX_PATH);
 				   	sprintf(str1,"table/%s/file%d.dat",tab,ret);

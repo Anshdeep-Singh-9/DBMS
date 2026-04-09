@@ -124,7 +124,7 @@ void create(){
 		std::cout << "\n------------------------------------------------\n";
 		return;
 	}
-	FILE *fp = fopen("./table/table_list","r+");
+	FilePtr fp = fopen("./table/table_list","r+");
 	if(fp == NULL)
 		std::cout<<"file pointer is null\n";
 
