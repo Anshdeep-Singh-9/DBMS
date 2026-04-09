@@ -5,32 +5,57 @@
 #include<algorithm>
 
 //tokenize select query for processing
+//tokenize select query for processing
 void tokenize_select(char query[]){
-    char buffer[1024];
-    vector <string> token_vector;
-    
-    strcpy(buffer, query);
-    
-    // Uses standard strtok, splitting strictly on spaces, commas, semicolons, and newlines
-    char *token = strtok(buffer, " ,;\n"); 
-    
-    while (token) {
-        string token_temp(token);
-        if(token_temp != " " && token_temp != "\n" ){
-            token_vector.push_back(token_temp);
+    vector<string> token_vector;
+    string current_token = "";
+    bool in_quotes = false;
+
+    for(int i = 0; query[i] != '\0'; i++){
+        char c = query[i];
+
+        // If we hit a quote, toggle our "inside quotes" state and add the quote to the token
+        if(c == '"'){
+            in_quotes = !in_quotes;
+            current_token += c; 
         }
-        token = strtok(NULL, " ,;\n"); 
+        // If we are NOT in quotes, treat spaces, commas, semicolons, and newlines as split points
+        else if(!in_quotes && (c == ' ' || c == ',' || c == ';' || c == '\n')){
+            if(!current_token.empty()){
+                token_vector.push_back(current_token);
+                current_token = "";
+            }
+        }
+        // Otherwise, just keep building the current word
+        else {
+            if(c != '\n') {
+                current_token += c;
+            }
+        }
     }
+    
+    // Catch the very last token if the string ended
+    if(!current_token.empty()){
+        token_vector.push_back(current_token);
+    }
+
     process_select(token_vector);
 }
 
 //tokenize create query for processing
 void tokenize_create(char query[]){
+    // CREATE TABLE [IF NOT EXISTS] <tablename> (<column1> <datatype>, <column2> <datatype>, PRIMARY KEY(<column1>));
+
+    /*
+    * implementation1
+    CREATE TABLE <tablename> (<column1> <datatype>, <column2> <datatype>);
+    */
     char buffer[1024];
     vector <string> token_vector;
 
     strcpy(buffer, query);
     
+    // FIX: Added \n here as well so CREATE queries don't suffer from the same newline bug
     char *token = strtok(buffer, " ,;\n");
     while (token) {
         string token_temp(token);
@@ -40,6 +65,10 @@ void tokenize_create(char query[]){
         }
         token = strtok(NULL, " ,;\n");
     }
+
+    // for(int i=0;i<token_vector.size();i++){
+    //     cout<<token_vector[i]<<endl;
+    // }
     cout<<endl;
 }
 
@@ -52,13 +81,16 @@ void get_query(){
     fgets(query,sizeof(char)*MAX_NAME,stdin);
     fgets(query,sizeof(char)*MAX_NAME,stdin);
 
+    //
     char buffer[1024];
     strcpy(buffer, query);
     
+    // FIX: Added \n here to ensure the first command word is caught cleanly
     char *token = strtok(buffer, " \n");
     if(token){
         string token_temp(token);
         if(token_temp != " " && token_temp != "\n"){
+            //cout<<"token:: "<<token<<endl;
             if(token_temp == "select"){
                 tokenize_select(query);
             }else if(token_temp == "create"){
@@ -66,6 +98,9 @@ void get_query(){
             }
         }
     }
+
+
+    //printf("\nquery:: %s\n",query);
 }
 
 void parse_create(){
@@ -79,4 +114,5 @@ void parse_create(){
   string tbetween = s.substr(openpos+1, s.length()-openpos-2);
   cout<<token<<endl;
   cout<<tbetween<<endl;
+
 }
