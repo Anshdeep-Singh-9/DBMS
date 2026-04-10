@@ -212,6 +212,7 @@ void show_tables(){
 
 void display_meta_data(struct table* t_ptr){
     cout<<"Table Name: "<<t_ptr->name<<endl<<endl;
+	cout<<"Max Row Size: "<<t_ptr->size<<endl<<endl;
     cout<<"Table Attributes:\n\n";
     for(int i=0; i<t_ptr->count; i++){
         cout<<"name: "<<t_ptr->col[i].col_name<<endl;
@@ -236,6 +237,7 @@ void display_meta_data(){
 		return;
 	}
     cout<<"Table Name: "<<t_ptr->name<<endl<<endl;
+	cout<<"Max Row Size: "<<t_ptr->size<<endl<<endl;
     cout<<"Table Attributes:\n";
     for(int i=0; i<t_ptr->count; i++){
         cout<<"name: "<<t_ptr->col[i].col_name<<endl;
