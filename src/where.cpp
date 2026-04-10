@@ -1,6 +1,6 @@
 #include "where.h"
 #include "BPtree.h"
-
+#include "file_handler.h"
 void select_particular_query(std::string table_name, std::string col_to_search, std::string col_value,std::map<std::string, int> &display_col_list){
     
     // --- TRACK QUOTES ---
@@ -18,7 +18,7 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
         /*
         access the meta data of table
         */
-        FILE *fp = open_file(tab, const_cast<char*>("r"));
+        FilePtr fp = open_file_read(tab, const_cast<char*>("r"));
         if(display_col_list.find("all_columns_set") != display_col_list.end()){
             //printf("all columns set *\n");
             //select contains * , insert all columns into display_col_list;
@@ -42,7 +42,7 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
         //
         if(display_col_list.find("all_columns_set") == display_col_list.end()){
             table *input;
-            FILE *fpall = open_file(tab, const_cast<char*>("r"));
+            FilePtr fpall = open_file_read(tab, const_cast<char*>("r"));
             input = (table*)malloc(sizeof(table));
 			if(fpall){
 				fread(input, sizeof(table), 1, fpall);
@@ -67,7 +67,7 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
 				return;
 			}
 		}
-        FILE *fpall2 = open_file(tab, const_cast<char*>("r"));
+        FilePtr fpall2 = open_file_read(tab, const_cast<char*>("r"));
         if(fpall2){
             int pri_int;
             int c;
@@ -85,7 +85,7 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                     if (ret == BPTREE_SEARCH_NOT_FOUND){
                        printf("\nkey %d don't exist!!!\n", pri_int);
                    }else{
-                       FILE *fpz;
+                       FilePtr fpz;
                        char *str1;
                        printf("\n------------------------------------\n");
                        str1 = (char*)malloc(sizeof(char)*MAX_PATH);
@@ -125,7 +125,12 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                        printf("\nkey %s don't exist !!!\n", pri_char);
                    }
                    else{
+<<<<<<< file_handling_Issue
+                       //print the details of the particular row;
+                       FilePtr fpz;
+=======
                        FILE *fpz;
+>>>>>>> main
                        char *str1;
                        str1 = (char*)malloc(sizeof(char)*MAX_PATH);
                        sprintf(str1,"table/%s/file%d.dat",tab,ret);
@@ -154,7 +159,7 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                 int col_number = 1;
                 int col_type = 0;
                 int flag = 0;
-                FILE *fpbf = open_file(tab, const_cast<char*>("r"));
+                FilePtr fpbf = open_file_read(tab, const_cast<char*>("r"));
                 table * tempbf = (table*)malloc(sizeof(table));
                 fread(tempbf,sizeof(table),1,fpbf);
                 for(int i = 0; i < tempbf->count ;i++){
@@ -181,7 +186,7 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                     int c;
                     char d[MAX_NAME];
                     for(int i=0;i<tempbf->rec_count;i++){
-                            FILE *fpr;
+                            FilePtr fpr ;
                             char *str;
                             str=(char*)malloc(sizeof(char)*MAX_PATH);
                             sprintf(str,"table/%s/file%d.dat",tab,i);

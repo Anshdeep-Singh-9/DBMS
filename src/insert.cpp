@@ -26,7 +26,7 @@ void insert_command(char tname[], void *data[], int total){
 	int ret;
 	BPtree obj(tname);
 	//open meta data
-	FILE *fp = open_file(tname, const_cast<char*>("r"));
+	FilePtr fp = open_file_read(tname, const_cast<char*>("r"));
 	temp = (table*)malloc(sizeof(table));
 	fread(temp, sizeof(table), 1, fp);
 
@@ -53,7 +53,7 @@ void insert_command(char tname[], void *data[], int total){
 	str=(char *)malloc(sizeof(char)*MAX_PATH);
 	sprintf(str, "table/%s/file%d.dat", tname, file_num);
 	//std::cout<<str<<endl;
-	FILE *fpr = fopen(str, "w+");
+	FilePtr fpr = fopen(str, "w+");
   int x;
 	char y[MAX_NAME];
 	for(int j = 0; j < temp->count; j++){
@@ -90,7 +90,7 @@ void insert(){
     table inp1;
 		int count;
 		//read column details from file;
-		FILE *fp = open_file(tab, const_cast<char*>("r"));
+		FilePtr fp = open_file_read(tab, const_cast<char*>("r"));
 		int i = 0;
 		while(fread(&inp1, sizeof(table), 1, fp)){
 			printf("------------------------------------\n");
