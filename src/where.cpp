@@ -1,8 +1,15 @@
-
 #include "where.h"
 #include "BPtree.h"
 
 void select_particular_query(std::string table_name, std::string col_to_search, std::string col_value,std::map<std::string, int> &display_col_list){
+    
+    // --- TRACK QUOTES ---
+    bool has_quotes = false;
+    if (col_value.length() >= 2 && col_value.front() == '"' && col_value.back() == '"') {
+        col_value = col_value.substr(1, col_value.length() - 2);
+        has_quotes = true;
+    }
+
     //process the particular query
     char *tab = (char*)malloc(sizeof(char)*MAX_NAME);
     strcpy(tab, table_name.c_str());
@@ -20,10 +27,8 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
             if(fp){
                 display_col_list.clear();
                 fread(temp,1,sizeof(table),fp);
-                //cout<<"temp count:: "<<temp->count<<endl;
                 for(int i = 0; i < temp->count; i++){
                     std::string temp_str(temp->col[i].col_name);
-                    //cout<<"temp: "<<temp_str<<endl;
                     display_col_list.insert(make_pair(temp_str,0));
                 }
             }else{
@@ -32,25 +37,19 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
             }
             std::map <std::string, int> :: iterator it;
             for(it = display_col_list.begin(); it != display_col_list.end(); it++){
-                //cout<<"col attributes::"<<it->first<<endl;
             }
         }
         //
         if(display_col_list.find("all_columns_set") == display_col_list.end()){
-            //printf("verifying columns\n");
             table *input;
             FILE *fpall = open_file(tab, const_cast<char*>("r"));
             input = (table*)malloc(sizeof(table));
 			if(fpall){
-                //cout<<"fp not null\n";
 				fread(input, sizeof(table), 1, fpall);
-                //cout<<"inp count:: "<<input->count<<endl;
 				for(int k = 0; k < input->count; k++){
 					std::string temp_str(input->col[k].col_name);
-                    //cout<<"temp_str:: "<<temp_str<<endl;
 					std::map <std::string, int>::iterator it = display_col_list.find(temp_str);
 					if(it != display_col_list.end()){
-                        //cout<<"it_first::"<<it->first<<endl;
 						it->second = 1;
 					}
 				}
@@ -78,7 +77,6 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
             int ret=0;
             table *temp2 = (table*)malloc(sizeof(table));
             fread(temp2, sizeof(table), 1, fpall2);
-            //cout<<"temp2 count:: "<<temp2->count<<endl;
             if(strcmp(temp2->col[0].col_name,col_to_search.c_str()) == 0){
                 //primary key, use btree for searching
                 if(temp2->col[0].type == INT){
@@ -111,6 +109,13 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                        free(str1);
                    }
                }else if(temp2->col[0].type == VARCHAR){
+                   
+                   // --- ENFORCE QUOTES FOR B-TREE VARCHAR ---
+                   if (!has_quotes) {
+                       printf("\nSyntax error: String literals must be enclosed in double quotes (\"\").\n\n");
+                       return;
+                   }
+
                    strcpy(pri_char,col_value.c_str());
                    void *arr[MAX_NAME];
                    arr[0] = (char*)malloc(sizeof(char)*MAX_NAME);
@@ -120,7 +125,6 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                        printf("\nkey %s don't exist !!!\n", pri_char);
                    }
                    else{
-                       //print the details of the particular row;
                        FILE *fpz;
                        char *str1;
                        str1 = (char*)malloc(sizeof(char)*MAX_PATH);
@@ -129,7 +133,6 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                        printf("\n------------------------------------\n");
                        for(int j = 0; j < temp2->count; j++){
                            std::string temp_str(temp2->col[j].col_name);
-                         //  if(display_col_list.find(temp_str) != display_col_list.end()){
                                if(temp2->col[j].type == INT){
                                    fread(&c, 1, sizeof(int), fpz);
                                    if(display_col_list.find(temp_str) != display_col_list.end())
@@ -140,7 +143,6 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                                    if(display_col_list.find(temp_str) != display_col_list.end())
                                    std::cout << d << setw(20);
                                }
-                         //  }
                        }
                        printf("\n-------------------------------------\n");
                        fclose(fpz);
@@ -149,12 +151,6 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                }
             }else{
                 //brute force search
-                //column entered not a primary key
-                /*
-                    * identify the column no.
-                    * fseek for column in file file%d.dat
-                    * check if the entry matches
-                */
                 int col_number = 1;
                 int col_type = 0;
                 int flag = 0;
@@ -166,7 +162,6 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                         col_number = i + 1;
                         col_type = tempbf->col[i].type;
                         flag = 1;
-                        //cout<<"col_number,col_type::"<<col_number<<", "<<col_type<<endl;
                         break;
                     }
                 }
@@ -174,33 +169,33 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                     printf("\ncolumn doesn't exist\nexiting...\n\n");
                     return ;
                 }else{
+                    
+                    // --- ENFORCE QUOTES FOR BRUTE FORCE VARCHAR ---
+                    if (col_type == VARCHAR && !has_quotes) {
+                        printf("\nSyntax error: String literals must be enclosed in double quotes (\"\").\n\n");
+                        return;
+                    }
+
                     //search for entry;
                     flag = 0;
                     int c;
                     char d[MAX_NAME];
-                    //cout<<"C........"<<c<<endl;
                     for(int i=0;i<tempbf->rec_count;i++){
                             FILE *fpr;
                             char *str;
                             str=(char*)malloc(sizeof(char)*MAX_PATH);
                             sprintf(str,"table/%s/file%d.dat",tab,i);
-                            //cout<<str<<endl;
                             fpr=fopen(str,"r");
                             for(int j = 0; j < col_number; j++){
-                                //make it more efficient;
                                     if(tempbf->col[j].type == INT){
                                         fread(&c,1,sizeof(int),fpr);
-                                        //cout<<"c::"<<c<<endl;
                                     }else if(tempbf->col[j].type == VARCHAR){
                                         fread(d,1,sizeof(char)*MAX_NAME,fpr);
-                                        //cout<<"d:: "<<d<<endl;
                                     }
                             }
                             if(col_type == INT){
                                 int col_int_value = atoi( col_value.c_str());
                                 if(col_int_value == c){
-                                    //display the requried fields
-                                    //printf("col_type is int");
                                     int c1;
                                     char d1[MAX_NAME];
                                     fclose(fpr);
@@ -223,9 +218,7 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                                     flag = 1;
                                 }
                             }else if(col_type == VARCHAR){
-                                //cout<<"d,col_value:: "<<d<<" ,"<<col_value.c_str()<<endl;
                                 if(strcmp(d,col_value.c_str()) == 0){
-                                    //printf("col_type varchar");
                                     int c1;
                                     char d1[MAX_NAME];
                                     fclose(fpr);
