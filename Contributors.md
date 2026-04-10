@@ -1,63 +1,271 @@
 # Contributors
 
-This document summarizes the main ownership areas of the five-member project team in simple words.
+This file presents the project contribution map for the five-member team in a clean and simple format.
 
-The goal is to show who is leading which part of the database engine and what impact that work has on the final system.
+The purpose is to clearly show:
+
+- who is leading which technical area
+- what features each member is expected to build
+- how each role affects the final mini database engine
 
 ---
 
-## Team Contribution Overview
+## Team At A Glance
 
-| Member | Core Role | What This Means In Simple Words | Impact On The Project |
+| Member | Main Role | Core Area | Project Impact |
 | --- | --- | --- | --- |
-| **Aryan Saini** | **Storage Architecture and Memory Flow** | Designing how the database stores rows in pages instead of separate files, defining `RID(page_id, slot_id)`, shaping slotted-page storage, and driving the logic that later supports clean RAM-side page handling. | Builds the base of the new DBMS-style engine so rows, indexes, and memory management can work in a proper structured way instead of a file-per-row model. |
-| **Hemant Singh** | **Disk Management and Page Persistence** | Handling how pages are created, saved, loaded, and tracked on disk so the storage design can actually work in practice. | Turns the storage design into a working disk layer that the database can rely on for real reads and writes. |
-| **Anshdeep Singh** | **Core Integrator** | Connecting the major modules of the project so storage, parser, indexing, and execution do not remain isolated parts. | Keeps the system unified and makes sure the project behaves like one engine rather than separate incomplete components. |
-| **Parth Khatri** | **B+ Tree Indexing** | Building and adapting the B+ Tree logic used for faster key-based searching and later linking it with row addresses. | Makes lookups efficient and gives the engine a real indexing backbone instead of only brute-force searching. |
-| **Adity Sirsalker** | **Query Handling and SQL-Side Flow** | Focusing on the query-facing side, including parser-side improvements, supported input flow, and user-facing query behavior. | Helps make the engine usable from the command side by improving how queries are understood, validated, and routed into execution. |
+| **Aryan Saini** | **Storage and Memory Architecture Lead** | Page-based storage, `RID`, slotted pages, tuple layout, buffer pool direction | Builds the core internal storage foundation of the engine |
+| **Hemant Singh** | **Disk Management Lead** | Page persistence, page allocation, storage file handling | Makes the designed storage model actually work on disk |
+| **Anshdeep Singh** | **Core Integrator** | Module linking, overall system flow, project coherence | Keeps the project unified and integration-ready |
+| **Parth Khatri** | **Indexing Lead** | B+ Tree design and key-based lookup flow | Makes searches faster and indexing practical |
+| **Adity Sirsalker** | **Query and Parser Flow** | Query-side behavior, parser-side improvements, user query path | Improves how the engine understands and routes queries |
 
 ---
 
-## Linked Subteam Note
+## Contribution Breakdown
 
-### Aryan Saini and Hemant Singh
+### Aryan Saini
 
-These two roles are closely linked.
+**Primary Role:** Storage and Memory Architecture Lead
 
-| Subteam | Combined Responsibility | Why This Pairing Matters |
-| --- | --- | --- |
-| **Aryan Saini + Hemant Singh** | Aryan defines how page-based storage and memory-side organization should work, while Hemant handles the low-level disk management needed to make that storage model run properly. | Together, they cover the full storage path: from **how data should be organized** to **how that organized data is physically read and written**. |
+**Focus Area**
+
+- redesign the storage model from row-per-file to page-based storage
+- define how rows are addressed using `RID(page_id, slot_id)`
+- shape how rows are placed inside slotted pages
+- drive the memory-side design needed before buffer pool behavior works properly
+
+**Core Responsibilities**
+
+- define the new page-based storage direction
+- define `PageHeader`, `SlotEntry`, and `RID`
+- shape row layout and tuple serialization format
+- support the path from stored bytes -> page -> row lookup
+- prepare the design base for later buffer pool integration
+
+**Key Features / Work Areas**
+
+- page-based table storage
+- row addressing using `RID`
+- slotted-page structure
+- tuple serialization and deserialization
+- storage-side row organization
+- memory-side page flow planning
+- **buffer pool / RAM management foundation**
+
+**Linked Collaboration**
+
+- works closely with **Hemant Singh**
+- Aryan defines how data should be organized in memory and inside pages
+- Hemant supports how those pages are physically created, stored, and read from disk
+
+**In Simple Words**
+
+- Aryan is helping the project move from "save each row in a separate file"
+- to "store many rows properly inside managed pages like a real DBMS"
+
+**Project Impact**
+
+- creates the storage backbone of the new engine
+- makes future indexing cleaner because B+ Trees can later point to `RID`
+- makes buffer pool work meaningful because memory caching needs fixed-size pages
+- turns the project from a basic prototype into a more serious DBMS design
+
+---
+
+### Hemant Singh
+
+**Primary Role:** Disk Management Lead
+
+**Focus Area**
+
+- manage how pages are stored and retrieved from disk
+- support file-level page allocation and persistence
+- provide the disk-side support needed by the new storage model
+
+**Core Responsibilities**
+
+- handle page creation on disk
+- handle page read and page write flow
+- maintain storage files that hold fixed-size pages
+- support stable persistence for the redesigned storage engine
+
+**Key Features / Work Areas**
+
+- disk manager logic
+- page file handling
+- persistent page storage
+- low-level storage read/write operations
+
+**In Simple Words**
+
+- Hemant is making sure the new storage pages do not remain only a design idea
+- he is helping them actually live safely on disk
+
+**Project Impact**
+
+- turns storage design into real persistent storage behavior
+- supports every higher-level feature that depends on stored pages
+- enables the project to move beyond temporary in-memory logic
+
+---
+
+### Anshdeep Singh
+
+**Primary Role:** Core Integrator
+
+**Focus Area**
+
+- connect the major modules of the database engine
+- keep the project architecture coherent as separate features are added
+
+**Core Responsibilities**
+
+- coordinate module integration
+- align storage, indexing, parser, and execution paths
+- reduce fragmentation across team contributions
+- help maintain overall project structure
+
+**Key Features / Work Areas**
+
+- system integration
+- project-level wiring
+- architecture-level coherence
+- module handoff and merge alignment
+
+**In Simple Words**
+
+- Anshdeep helps make sure the project behaves like one complete engine
+- not five separate incomplete parts
+
+**Project Impact**
+
+- reduces integration problems
+- keeps the final system usable as one coherent product
+- helps ensure separate features connect properly
+
+---
+
+### Parth Khatri
+
+**Primary Role:** B+ Tree and Indexing Lead
+
+**Focus Area**
+
+- efficient indexed search
+- B+ Tree behavior for key-based access
+- support future connection between indexes and row addresses
+
+**Core Responsibilities**
+
+- work on B+ Tree logic
+- support exact-match key lookup
+- help align indexing with the new `RID`-based storage direction
+- strengthen search efficiency over brute-force scanning
+
+**Key Features / Work Areas**
+
+- B+ Tree node behavior
+- key insertion and lookup
+- indexed search path
+- later `key -> RID` mapping support
+
+**In Simple Words**
+
+- Parth is handling the part that helps the database find things faster
+- instead of scanning every row one by one
+
+**Project Impact**
+
+- improves search performance
+- gives the project a real indexing layer
+- supports scalable lookup behavior as the engine grows
+
+---
+
+### Adity Sirsalker
+
+**Primary Role:** Query Handling and Parser Flow
+
+**Focus Area**
+
+- improve how the system accepts and understands queries
+- support parser-side and query-side usability
+
+**Core Responsibilities**
+
+- improve query handling flow
+- support parser-related fixes and improvements
+- help shape the supported SQL-like input path
+- improve user-facing query behavior and validation
+
+**Key Features / Work Areas**
+
+- parser-side improvement
+- query input behavior
+- syntax and query handling fixes
+- user-facing query support
+
+**In Simple Words**
+
+- Adity is helping the engine better understand what the user types
+- and route that input properly into execution
+
+**Project Impact**
+
+- makes the database easier to use
+- improves supported query flow
+- helps turn internal modules into a usable command/query system
+
+---
+
+## Linked Subteam: Storage Path
+
+### Aryan Saini + Hemant Singh
+
+This is the storage subteam of the project.
+
+| Subteam Area | Aryan Saini | Hemant Singh | Combined Impact |
+| --- | --- | --- | --- |
+| **Storage Path** | Defines how data should be arranged in pages, how rows are addressed, and how memory-side page logic should work. | Handles the disk-side operations that store, load, and persist those pages. | Together they cover the full path from **storage design** to **storage execution on disk**. |
+
+### Why this pairing matters
+
+- Aryan shapes the structure of data inside the system
+- Hemant makes that structure persist correctly on disk
+- together they make later features like buffer pool and indexing possible
 
 ---
 
 ## Project Layer Ownership
 
-| Project Layer | Primary Owner(s) | Main Responsibility | Why It Matters |
+| Layer | Owner | Main Work | Why It Matters |
 | --- | --- | --- | --- |
-| **Storage Model** | **Aryan Saini** | Define page-based storage, row addressing, and the structure of stored data. | This is the foundation on which indexing and execution depend. |
-| **Disk Layer** | **Hemant Singh** | Build and maintain the page read/write layer and persistent storage path. | Without this, the new storage model cannot actually run. |
-| **System Integration** | **Anshdeep Singh** | Bring all modules together and maintain coherence across components. | Prevents the codebase from splitting into unrelated pieces. |
-| **Index Layer** | **Parth Khatri** | Build B+ Tree logic for efficient searching. | Enables scalable lookup performance. |
-| **Query / Input Layer** | **Adity Sirsalker** | Improve parser-side and query-side behavior. | Makes the engine practical to use from the user side. |
+| **Storage Model Layer** | **Aryan Saini** | Page layout, `RID`, slotted pages, tuple layout | This is the base of the DBMS engine |
+| **Disk Layer** | **Hemant Singh** | Disk manager and page persistence | This makes storage real and durable |
+| **Integration Layer** | **Anshdeep Singh** | Cross-module alignment and system wiring | This keeps the project connected |
+| **Index Layer** | **Parth Khatri** | B+ Trees and indexed lookup | This improves efficiency |
+| **Query Layer** | **Adity Sirsalker** | Query flow and parser-facing improvements | This improves usability |
 
 ---
 
-## Short Role Impact Summary
+## Final Impact Summary
 
-- **Aryan Saini** is shaping the storage direction of the engine so the project grows from a basic prototype into a more realistic DBMS design.
-- **Hemant Singh** is grounding that design in an actual disk-management path so storage can persist and scale properly.
-- **Anshdeep Singh** is the connector who helps the separate technical modules function as one complete project.
-- **Parth Khatri** is responsible for the indexing strength of the system through B+ Tree work.
-- **Adity Sirsalker** supports the query-facing side so user input and execution flow become more robust and usable.
+- **Aryan Saini** leads the storage direction and memory-side design needed to transform the project into a real page-based DBMS-style engine.
+- **Hemant Singh** makes that storage direction practical by handling the disk-level page operations required to persist and retrieve data.
+- **Anshdeep Singh** keeps all major modules connected so the final codebase behaves like one coherent system.
+- **Parth Khatri** strengthens the project with indexed access through B+ Tree-based search logic.
+- **Adity Sirsalker** improves the query-facing side so the engine becomes easier to use and more stable in its SQL-like flow.
 
 ---
 
-## Editable Template Notes
+## Template Notes For Later Editing
 
-If the team later wants to refine this file for final submission or presentation, these are the easiest parts to update:
+This file is ready to be refined later once all modules are complete.
 
-- the exact wording of each ownership title
-- the final query/parser scope for **Adity Sirsalker**
-- the final storage-memory wording for **Aryan Saini**
-- the exact integration scope handled by **Anshdeep Singh**
-- any final collaboration links between indexing, parser, and execution roles
+Possible future updates:
+
+- add final completed feature names under each member
+- add PR links or issue references under each role
+- replace template-style wording with final submitted work
+- add a final "team workflow" or "collaboration graph" section if needed
