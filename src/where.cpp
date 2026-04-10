@@ -125,12 +125,8 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
                        printf("\nkey %s don't exist !!!\n", pri_char);
                    }
                    else{
-<<<<<<< file_handling_Issue
                        //print the details of the particular row;
                        FilePtr fpz;
-=======
-                       FILE *fpz;
->>>>>>> main
                        char *str1;
                        str1 = (char*)malloc(sizeof(char)*MAX_PATH);
                        sprintf(str1,"table/%s/file%d.dat",tab,ret);

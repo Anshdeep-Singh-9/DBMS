@@ -13,7 +13,7 @@ int record_size(table *temp){
 			break;
 		case VARCHAR:
 			temp->prefix[i+1] = sizeof(char)*(MAX_VARCHAR +1) + temp->prefix[i];
-			size += sizeof(char)*(MAX_VARCHAR + 1);
+			size += (MAX_VARCHAR + 1);
 			break;
 		}
 	}
@@ -87,15 +87,28 @@ table * create_table(char name[], int count){
 				}
 			}else if(type[0] == 50){
 				if(size[0] > 48 && size[0] < 58){
+
 					if(size.length() == 1){
 						temp->col[i].size = size[0] -48;
-					}else if(size.length() == 2){
-						temp->col[i].size = (size[0] - 48)*10 + (size[1] - 48);
-					}else{
+					}
+					else if(size.length() == 2){
+						if((size[1] >=48 && size[1]<58)) temp->col[i].size = (size[0] - 48)*10 + (size[1] - 48);
+						else{
+							cout<<"\nInvalid input! Only numeric values are allowed!\n";
+							printf("---------------------------------------------------------------------\n");
+							return NULL;
+						}
+					}
+					else{
 						printf("\nwrong input\nmax size(max allowed char=99), exiting...\n");
 						printf("---------------------------------------------------------------------\n");
 						return NULL;
 					}
+				}
+				else{
+					cout<<"\nInvalid input! Only numeric values are allowed!\n";
+					printf("---------------------------------------------------------------------\n");
+					return NULL;
 				}
 			}
 		}
