@@ -14,7 +14,7 @@ The purpose is to clearly show:
 
 | Member | Main Role | Core Area | Project Impact |
 | --- | --- | --- | --- |
-| **Aryan Saini** | **Storage and Memory Architecture Lead** | Page-based storage, `RID`, slotted pages, tuple layout, buffer pool direction | Builds the core internal storage foundation of the engine |
+| **Aryan Saini** | **Storage and Memory Architecture Lead** | `RID`, slotted pages, tuple layout, page metadata, buffer pool direction | Builds the core internal storage foundation of the engine |
 | **Hemant Singh** | **Disk Management Lead** | Page persistence, page allocation, storage file handling | Makes the designed storage model actually work on disk |
 | **Anshdeep Singh** | **Core Integrator** | Module linking, overall system flow, project coherence | Keeps the project unified and integration-ready |
 | **Parth Khatri** | **Indexing Lead** | B+ Tree design and key-based lookup flow | Makes searches faster and indexing practical |
@@ -30,26 +30,27 @@ The purpose is to clearly show:
 
 **Focus Area**
 
-- redesign the storage model from row-per-file to page-based storage
+- construct the internal storage blueprint of the engine
 - define how rows are addressed using `RID(page_id, slot_id)`
-- shape how rows are placed inside slotted pages
+- shape how tuples are placed and tracked inside slotted pages
 - drive the memory-side design needed before buffer pool behavior works properly
 
 **Core Responsibilities**
 
-- define the new page-based storage direction
-- define `PageHeader`, `SlotEntry`, and `RID`
-- shape row layout and tuple serialization format
-- support the path from stored bytes -> page -> row lookup
+- construct the base storage types such as `PageHeader`, `SlotEntry`, and `RID`
+- define the row layout and tuple serialization format
+- shape the full flow from row values -> serialized bytes -> page slot -> row lookup
+- define how rows will be organized inside fixed-size pages
 - prepare the design base for later buffer pool integration
 
 **Key Features / Work Areas**
 
-- page-based table storage
 - row addressing using `RID`
+- page metadata design
 - slotted-page structure
 - tuple serialization and deserialization
-- storage-side row organization
+- storage-side tuple organization
+- page insertion and lookup flow planning
 - memory-side page flow planning
 - **buffer pool / RAM management foundation**
 
@@ -61,15 +62,16 @@ The purpose is to clearly show:
 
 **In Simple Words**
 
-- Aryan is helping the project move from "save each row in a separate file"
-- to "store many rows properly inside managed pages like a real DBMS"
+- Aryan is building the internal storage structure of the engine
+- this includes deciding where a row lives, how it is packed, how it is tracked, and how memory-side page handling will later work
 
 **Project Impact**
 
 - creates the storage backbone of the new engine
+- gives the database a clear internal structure for row placement and lookup
 - makes future indexing cleaner because B+ Trees can later point to `RID`
 - makes buffer pool work meaningful because memory caching needs fixed-size pages
-- turns the project from a basic prototype into a more serious DBMS design
+- turns storage work into a reusable system instead of scattered file handling
 
 ---
 
@@ -251,7 +253,7 @@ This is the storage subteam of the project.
 
 ## Final Impact Summary
 
-- **Aryan Saini** leads the storage direction and memory-side design needed to transform the project into a real page-based DBMS-style engine.
+- **Aryan Saini** leads the storage construction and memory-side design that defines how rows are packed, tracked, and managed inside the engine.
 - **Hemant Singh** makes that storage direction practical by handling the disk-level page operations required to persist and retrieve data.
 - **Anshdeep Singh** keeps all major modules connected so the final codebase behaves like one coherent system.
 - **Parth Khatri** strengthens the project with indexed access through B+ Tree-based search logic.
