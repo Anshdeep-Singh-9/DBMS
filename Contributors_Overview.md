@@ -16,7 +16,7 @@ It ensures clarity on:
 |--------|-------------|----------|--------|
 | **Aryan Saini** | Storage & Memory Architecture | Page design, RID, slotted pages | Builds the storage backbone |
 | **Hemant Singh** | Disk Management | Disk persistence, page storage | Makes storage durable |
-| **Anshdeep Singh** | B+ Tree + API + Query Editor | Indexing + API + UI tooling | Connects system to users & Develop Table Storage Structure |
+| **Anshdeep Singh** | B+ Tree + API | Indexing + API | Connects system to users & Develop Table Storage Structure |
 | **Parth Khatri** | B+ Tree + Parser + SQL Layer | B+ Tree + Query processing | Improves query execution & Develop Table Storage Structure |
 | **Aditya Sirsalker** | Parser + Frontend | Query parsing + UI | Makes system usable & Query Parsing |
 
