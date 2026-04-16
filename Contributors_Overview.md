@@ -161,14 +161,13 @@ It ensures clarity on:
 
 ## Aditya Sirsalker
 
-**Primary Role:** Parser + API Integration + Cache
+**Primary Role:** Parser + API Integration 
 
 ### Focus Area
 
 - Query parsing  
 - Frontend interface  
 - Parser Development
-- Cache Integration
 
 ### Core Responsibilities
 
