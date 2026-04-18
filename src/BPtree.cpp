@@ -1,463 +1,350 @@
 #include "BPtree.h"
+#include "declaration.h"
+#include <iostream>
+#include <algorithm>
+#include <cstring>
 
-class Btreenode
-{
-
-  private:
-    bool leaf;
-    std::vector < int >pointers;
-    std::vector < int >keys;
-    int next_node;
-
-  public:
-      Btreenode();
-      Btreenode(bool makeleaf){
-        leaf = makeleaf;
-        next_node = -1;
+BPtreeNode::BPtreeNode(uint32_t id, bool leaf)
+    : is_leaf(leaf), num_keys(0), page_id(id), next_page_id(INVALID_PAGE_ID), prev_page_id(INVALID_PAGE_ID) {
+    for (int i = 0; i < MAX_KEYS; ++i) {
+        keys[i] = 0;
+        values[i] = RID();
     }
-
-    bool isleaf(){
-        return leaf;
-    }
-
-    void set_leaf(bool val){
-        leaf = val;
-    }
-
-    int num_keys(){
-        return keys.size();
-    }
-
-    int num_pointers(){
-        return pointers.size();
-    }
-
-    int get_key(int i){
-        return keys[i - 1];
-    }
-
-    int get_pointer(int i){
-        return pointers[i - 1];
-    }
-
-    void set_next(int x){
-        next_node = x;
-    }
-
-    int get_next(){
-        return next_node;
-    }
-
-    void push_key(int val){
-        keys.push_back(val);
-    }
-
-    void push_pointer(int val){
-        pointers.push_back(val);
-    }
-
-    void clear_data(){
-        keys.clear();
-        pointers.clear();
-    }
-
-    int* get_keys_add(){
-        return &keys[0];
-    }
-
-    int* get_point_add(){
-        return &pointers[0];
-    }
-
-    ~Btreenode(){
-        clear_data();
-    }
-
-    /*Function that performs binary search and returns the
-       correct child. For Internal Nodes */
-    /*
-    std::lower_bound()
-      Returns an iterator pointing to the first element in
-       the range [first,last) which does not compare less than val.
-       If all the element in the range compare less than val, the
-       function returns last.
-    */
-    int get_next_key(int search_key){
-        return (std::lower_bound(keys.begin(), keys.end(),
-                                 search_key) - keys.begin());
-    }
-
-    /*Function that performs binary search and returns
-       boolean result */
-    int search_key(int search_key){
-        return std::binary_search(keys.begin(), keys.end(), search_key);
-    }
-
-    //Function to check if node is full
-    bool full(){
-        if (leaf){
-            if (pointers.size() < BPTREE_MAX_KEYS_PER_NODE - 1)
-                return false;
-            else
-                return true;
-        }
-        if (pointers.size() < BPTREE_MAX_KEYS_PER_NODE)
-            return false;
-        else
-            return true;
-    }
-
-    /*Function that inserts a new record in a node which
-       is not yet full */
-    void insert_key(int key, int point){
-        //get the position in vector keys to insert
-		//new key so that keys[] remains sorted;
-        int pos = get_next_key(key);
-        keys.insert(keys.begin() + pos, key);
-        //insert position of key inside pointers;
-        if (leaf)
-            pointers.insert(pointers.begin() + pos, point);
-        else
-            pointers.insert(pointers.begin() + pos + 1, point);
-    }
-
-    /*Function that copies first 'n' records from a given
-       node to the current node */
-    void copy_first(Btreenode & node, int n){
-        keys.clear();
-        pointers.clear();
-        for (int i = 1; i < n; i++){
-            keys.push_back(node.get_key(i));
-            pointers.push_back(node.get_pointer(i));
-        }
-        pointers.push_back(node.get_pointer(n));
-        if (leaf){
-            keys.push_back(node.get_key(n));
-        }
-    }
-
-    /*Function that copies records from a given node to
-       current node. It ignores first 'n' records */
-    void copy_last(Btreenode & node, int n){
-        keys.clear();
-        pointers.clear();
-        int lim = node.num_pointers();
-        for (int i = n + 1; i <= lim; i++){
-            pointers.push_back(node.get_pointer(i));
-        }
-        lim = node.num_keys();
-        for (int i = n + 1; i <= lim; i++){
-            keys.push_back(node.get_key(i));
-        }
-    }
-
-    //Overloading write operator to write to a file
-    /*
-		write to file in format
-		(is_leaf_or_not,keys_size,for(0 to key_size)<keys_Values>,pointer_size,for(0to pointers_size)<pointer_values>, next_node);
-
-		according to sample program
-		tree0.dat will store data in following format
-		(1 8 1 3 5 6 7 8 9 12 8 2 4 1 7 3 0 6 5 -1);
-		*/
-    friend std::ofstream & operator<<(std::ofstream & os, const Btreenode & en){
-        // is leaf or not;
-        os << en.leaf << " ";
-        // keys size
-        os << (int) en.keys.size() << " ";
-        for (unsigned int i = 0; i < en.keys.size(); i++){
-            os << en.keys[i] << " ";
-        }
-        os << (int) en.pointers.size() << " ";
-        // pointers are the indices of the stored elements in vector a;
-        for (unsigned int i = 0; i < en.pointers.size(); i++){
-            os << en.pointers[i] << " ";
-        }
-        os << en.next_node;
-        return os;
-    }
-
-    //Overloading read operator to read from a fil
-    friend std::ifstream & operator>>(std::ifstream & is, Btreenode & en){
-        // read all the data stored in file <descrbed in << operator overloading>
-        int ts;
-        is >> en.leaf;
-        is >> ts;
-        en.keys.resize(ts);
-        for (int i = 0; i < ts; i++){
-            is >> en.keys[i];
-        }
-        is >> ts;
-        en.pointers.resize(ts);
-        for (int i = 0; i < ts; i++){
-            is >> en.pointers[i];
-        }
-        is >> en.next_node;
-        return is;
-    }
-
-    //Overloading Assignment Operator
-    Btreenode & operator=(const Btreenode & n){
-        if (this != &n){
-            leaf = n.leaf;
-            keys.assign(n.keys.begin(), n.keys.end());
-            pointers.assign(n.pointers.begin(), n.pointers.end());
-        }
-        return *this;
-    }
-};
-
-    /* Function that writes a node 'n' to a given
-       filenum(like pointer) */
-void BPtree :: write_node(int filenum, Btreenode n){
-    char *str;
-    str = (char *) malloc(sizeof(char) * BPTREE_MAX_FILE_PATH_SIZE);
-    //if filenum=0; open tree0.dat;
-    sprintf(str, "table/%s/tree/tree%d.dat", tablename,filenum);
-    std::ofstream out_file(str, std::ofstream::binary |  std::ofstream::out | std::ofstream::trunc);
-    free(str);
-    //write data to out_file root = n()
-    out_file << n;
-    out_file.close();
-}
-
-
-    /* Function that updates Meta-Data of a table after
-       inserting a record */
-void BPtree :: update_meta_data(){
-    char *str;
-    str = (char *) malloc(sizeof(char) * BPTREE_MAX_FILE_PATH_SIZE);
-    sprintf(str, "table/%s/tree/meta_tree.dat", tablename);
-    std::ofstream out_file(str, std::ofstream::out | std::ofstream::trunc
-                                        | std::ofstream::binary );
-    out_file << files_till_now << " " << root_num;
-    out_file.close();
-    free(str);
-}
-
-
-    /* Constructor function that initializes tree with existing
-       meta-data or creates new tree and writes meta-data */
-BPtree :: BPtree(char table_name[]){
-    strcpy(tablename,table_name);
-    char *str;
-    str = (char *) malloc(sizeof(char) * BPTREE_MAX_FILE_PATH_SIZE);
-    sprintf(str, "mkdir -p table/%s/tree", tablename);
-    // cout<<"str"<<str<<endl;
-    system(str);
-    sprintf(str, "table/%s/tree/meta_tree.dat", tablename);
-
-    std::ifstream in_file(str, std::ifstream::in | std::ifstream::binary);
-    if (!in_file){
-            /* If no meta data for table's BTree is found i.e.,
-               It is new table. Then Create new meta data */
-        std::ofstream out_file(str, std::ofstream::binary |
-                                   std::ofstream::out | std::ofstream::trunc);
-        if (!out_file){
-            printf("Critical Error : Unable to Write on Disk !!");
-            printf("\nAborting ... ... \n");
-            abort();
-        }
-        files_till_now = root_num = 0;
-        out_file.write((char *) (&files_till_now), sizeof(files_till_now));
-        out_file.write((char *) (&root_num), sizeof(root_num));
-        out_file.close();
-
-        //initialize with root node = leaf node;
-        Btreenode root(true);
-        //set next_node=-1; as it is root;
-        root.set_next(-1);
-        //write node data to outfile;
-        write_node(0, root);
-    }//if file already created read the previously stored data;
-    else{
-        /* Read old Meta Data */
-        in_file >> files_till_now >> root_num;
-        in_file.close();
-    }
-    free(str);
-}
-
-/* Function that reads a node 'n' from a given
-      filenum(like pointer) */
-void BPtree :: read_node(int filenum, Btreenode & n){
-    char *str;
-    str = (char *) malloc(sizeof(char) * BPTREE_MAX_FILE_PATH_SIZE);
-    sprintf(str, "table/%s/tree/tree%d.dat", tablename, filenum);
-    std::ifstream in_file(str, std::ifstream::in | std::ifstream::binary);
-    free(str);
-    in_file >> n;
-    in_file.close();
-}
-
-
-/* Function that traverses the BPtree and returns the leaf node
-    where 'primary_key' record should exist, if it exist at all */
-Btreenode BPtree::search_leaf(int primary_key){
-    Btreenode n(true);
-    int q, curr_node = root_num;
-    read_node(curr_node, n);
-
-    //Traversing the Tree from root till leaf
-    while (!n.isleaf()){
-        q = n.num_pointers();
-        if (primary_key <= n.get_key(1)){
-            //set curr_node =pointers[0];
-            curr_node = n.get_pointer(1);
-        }
-        else if (primary_key > n.get_key(q - 1)){
-            //set curr_node = pointers[q-1];
-            curr_node = n.get_pointer(q);
-        }else{
-            //find the correct position of key to be stored;
-            curr_node = n.get_pointer(n.get_next_key(primary_key) + 1);
-        }
-        read_node(curr_node, n);
-    }
-    return n;
-}
-
-/* A function that returns the record number of a tuple
-    with indexed column = 'primary_key' */
-int BPtree::get_record(int primary_key){
-	clock_t start=clock();
-    Btreenode n = search_leaf(primary_key);
-    int pos = n.get_next_key(primary_key) + 1;
-    clock_t stop=clock();
-    double elapsed=(double)(stop-start)*1000.0/CLOCKS_PER_SEC;
-    printf("\nTime elapsed for search is %f ms\n",elapsed);
-    if (pos <= n.num_keys() && n.get_key(pos) == primary_key){
-        return n.get_pointer(pos);
-    }else{
-        return BPTREE_SEARCH_NOT_FOUND;
+    for (int i = 0; i < MAX_CHILDREN; ++i) {
+        children[i] = INVALID_PAGE_ID;
     }
 }
 
-/* A function the inserts a (key, record_num) pair in the
-    B+ Tree */
-// key is first coloumn of database either can be int or varchar;
-int BPtree::insert_record(int primary_key, int record_num){
-	 //printf("pri %d\n record_num %d",primary_key,record_num);
-   // Btreenode n= leaf=true, next_node =-1;
-    Btreenode n(true);
-    int q, j, prop_n, prop_k, prop_new, curr_node = root_num;
-    bool finish = false;
-    std::stack < std::pair<int, Btreenode> > S;
-    // read all the data of node stored in file tree%d.data (%d==curr_node=root_num=file_no);
-	  // now n contains all the previously stored data;
-    read_node(curr_node, n);
+void BPtreeNode::serialize(char* buffer) const {
+    std::memset(buffer, 0, STORAGE_PAGE_SIZE);
+    char* ptr = buffer;
+    
+    uint32_t leaf_val = is_leaf ? 1 : 0;
+    std::memcpy(ptr, &leaf_val, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+    std::memcpy(ptr, &num_keys, sizeof(int)); ptr += sizeof(int);
+    std::memcpy(ptr, &page_id, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+    std::memcpy(ptr, keys, sizeof(int) * MAX_KEYS); ptr += sizeof(int) * MAX_KEYS;
+    std::memcpy(ptr, children, sizeof(uint32_t) * MAX_CHILDREN); ptr += sizeof(uint32_t) * MAX_CHILDREN;
+    
+    for (int i = 0; i < MAX_KEYS; i++) {
+        std::memcpy(ptr, &values[i].page_id, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+        std::memcpy(ptr, &values[i].slot_id, sizeof(uint16_t)); ptr += sizeof(uint16_t);
+    }
+    
+    std::memcpy(ptr, &next_page_id, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+    std::memcpy(ptr, &prev_page_id, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+}
 
-    // Traverse the tree till we get the leaf node;
-    while (!n.isleaf()){
-        S.push(make_pair(curr_node,n));      // Storing address in case of split
-        // num_pointers==function that returns size of pointers vector from the block file;
-        q = n.num_pointers();
-        if (primary_key <= n.get_key(1)){
-            curr_node = n.get_pointer(1);
-        }else if (primary_key > n.get_key(q - 1)){
-            curr_node = n.get_pointer(q);
-        }else{
-            curr_node = n.get_pointer(n.get_next_key(primary_key) + 1);
-        }
-        // get all the data of node n from file tree%d.dat(%d==curr_node);
-        read_node(curr_node, n);
+void BPtreeNode::deserialize(const char* buffer) {
+    const char* ptr = buffer;
+    
+    uint32_t leaf_val;
+    std::memcpy(&leaf_val, ptr, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+    is_leaf = (leaf_val == 1);
+    
+    std::memcpy(&num_keys, ptr, sizeof(int)); ptr += sizeof(int);
+    std::memcpy(&page_id, ptr, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+    std::memcpy(keys, ptr, sizeof(int) * MAX_KEYS); ptr += sizeof(int) * MAX_KEYS;
+    std::memcpy(children, ptr, sizeof(uint32_t) * MAX_CHILDREN); ptr += sizeof(uint32_t) * MAX_CHILDREN;
+    
+    for (int i = 0; i < MAX_KEYS; i++) {
+        std::memcpy(&values[i].page_id, ptr, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+        std::memcpy(&values[i].slot_id, ptr, sizeof(uint16_t)); ptr += sizeof(uint16_t);
+    }
+    
+    std::memcpy(&next_page_id, ptr, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+    std::memcpy(&prev_page_id, ptr, sizeof(uint32_t)); ptr += sizeof(uint32_t);
+}
+
+BPtree::BPtree(const char* table_name) 
+    : root_page_id_(INVALID_PAGE_ID), table_name_(table_name) {
+    std::string index_path = "table/" + table_name_ + "/index.dat";
+    disk_manager_ = new DiskManager(index_path);
+    if (disk_manager_->open_or_create()) {
+        load_root();
+    }
+}
+
+BPtree::~BPtree() {
+    if (disk_manager_) {
+        save_root();
+        delete disk_manager_;
+    }
+}
+
+void BPtree::load_root() {
+    if (disk_manager_->page_count() == 0) {
+        disk_manager_->allocate_page(); // Page 0 for metadata
+        root_page_id_ = INVALID_PAGE_ID;
+        save_root();
+    } else {
+        char buffer[STORAGE_PAGE_SIZE];
+        disk_manager_->read_page(0, buffer);
+        std::memcpy(&root_page_id_, buffer, sizeof(uint32_t));
+    }
+}
+
+void BPtree::save_root() {
+    char buffer[STORAGE_PAGE_SIZE];
+    std::memset(buffer, 0, STORAGE_PAGE_SIZE);
+    std::memcpy(buffer, &root_page_id_, sizeof(uint32_t));
+    disk_manager_->write_page(0, buffer);
+}
+
+uint32_t BPtree::allocate_node(bool is_leaf) {
+    uint32_t page_id = disk_manager_->allocate_page();
+    BPtreeNode node(page_id, is_leaf);
+    write_node(node);
+    return page_id;
+}
+
+void BPtree::read_node(uint32_t page_id, BPtreeNode& node) {
+    char buffer[STORAGE_PAGE_SIZE];
+    disk_manager_->read_page(page_id, buffer);
+    node.deserialize(buffer);
+}
+
+void BPtree::write_node(const BPtreeNode& node) {
+    char buffer[STORAGE_PAGE_SIZE];
+    node.serialize(buffer);
+    disk_manager_->write_page(node.page_id, buffer);
+}
+
+RID BPtree::search(int key) {
+    if (root_page_id_ == INVALID_PAGE_ID) return RID();
+    
+    uint32_t curr_id = root_page_id_;
+    BPtreeNode curr;
+    while (curr_id != INVALID_PAGE_ID) {
+        read_node(curr_id, curr);
+        if (curr.is_leaf) break;
+        int i = 0;
+        while (i < curr.num_keys && key >= curr.keys[i]) i++;
+        curr_id = curr.children[i];
+    }
+    
+    if (curr_id == INVALID_PAGE_ID) return RID();
+
+    for (int i = 0; i < curr.num_keys; ++i) {
+        if (curr.keys[i] == key) return curr.values[i];
+    }
+    return RID();
+}
+
+int BPtree::get_record(int key) {
+    RID rid = search(key);
+    return (rid.page_id == INVALID_PAGE_ID) ? BPTREE_SEARCH_NOT_FOUND : (int)rid.slot_id;
+}
+
+int BPtree::insert_record(int key, int record_num) {
+    if (search(key).page_id != INVALID_PAGE_ID) return BPTREE_INSERT_ERROR_EXIST;
+    insert(key, RID(0, (uint16_t)record_num));
+    return BPTREE_INSERT_SUCCESS;
+}
+
+void BPtree::insert(int key, RID rid) {
+    if (root_page_id_ == INVALID_PAGE_ID) {
+        root_page_id_ = allocate_node(true);
+        BPtreeNode root_node;
+        read_node(root_page_id_, root_node);
+        root_node.keys[0] = key;
+        root_node.values[0] = rid;
+        root_node.num_keys = 1;
+        write_node(root_node);
+        save_root();
+        return;
+    }
+    
+    uint32_t curr_id = root_page_id_;
+    BPtreeNode curr;
+    while (curr_id != INVALID_PAGE_ID) {
+        read_node(curr_id, curr);
+        if (curr.is_leaf) break;
+        int i = 0;
+        while (i < curr.num_keys && key >= curr.keys[i]) i++;
+        curr_id = curr.children[i];
     }
 
-    // Here n is Leaf Node
-    // if key already exists then return ERROR
-    if (n.search_key(primary_key)) {
-        return BPTREE_INSERT_ERROR_EXIST;
+    if (curr.num_keys < MAX_KEYS) {
+        insert_into_leaf(curr, key, rid);
+        write_node(curr);
+    } else {
+        split_leaf(curr, key, rid);
+    }
+}
+
+void BPtree::insert_into_leaf(BPtreeNode& leaf, int key, RID rid) {
+    int i = leaf.num_keys - 1;
+    while (i >= 0 && leaf.keys[i] > key) {
+        leaf.keys[i + 1] = leaf.keys[i];
+        leaf.values[i + 1] = leaf.values[i];
+        i--;
+    }
+    leaf.keys[i + 1] = key;
+    leaf.values[i + 1] = rid;
+    leaf.num_keys++;
+}
+
+void BPtree::split_leaf(BPtreeNode& leaf, int key, RID rid) {
+    int temp_keys[MAX_KEYS + 1];
+    RID temp_values[MAX_KEYS + 1];
+    int i = 0;
+    while (i < MAX_KEYS && leaf.keys[i] < key) {
+        temp_keys[i] = leaf.keys[i];
+        temp_values[i] = leaf.values[i];
+        i++;
+    }
+    temp_keys[i] = key;
+    temp_values[i] = rid;
+    int j = i + 1;
+    while (i < MAX_KEYS) {
+        temp_keys[j] = leaf.keys[i];
+        temp_values[j] = leaf.values[i];
+        i++; j++;
     }
 
-    /*
-      if n is not full, insert key and pointer to node
-      write back node to file, update meta_data and return
-    */
-    if (!n.full()){
-        n.insert_key(primary_key, record_num);
-        write_node(curr_node, n);
-        update_meta_data();
-        return BPTREE_INSERT_SUCCESS;
+    uint32_t new_leaf_id = allocate_node(true);
+    BPtreeNode new_leaf;
+    read_node(new_leaf_id, new_leaf);
+    
+    leaf.num_keys = 2;
+    for (int k = 0; k < 2; k++) {
+        leaf.keys[k] = temp_keys[k];
+        leaf.values[k] = temp_values[k];
+    }
+    new_leaf.num_keys = 3;
+    for (int k = 0; k < 3; k++) {
+        new_leaf.keys[k] = temp_keys[k + 2];
+        new_leaf.values[k] = temp_values[k + 2];
     }
 
-    //if node n is full, then split;
-    Btreenode temp(true), new_node(true);
+    new_leaf.next_page_id = leaf.next_page_id;
+    if (leaf.next_page_id != INVALID_PAGE_ID) {
+        BPtreeNode next_node;
+        read_node(leaf.next_page_id, next_node);
+        next_node.prev_page_id = new_leaf_id;
+        write_node(next_node);
+    }
+    leaf.next_page_id = new_leaf_id;
+    new_leaf.prev_page_id = leaf.page_id;
 
-    temp = n;
-    temp.insert_key(primary_key, record_num);
-    j = ceil((BPTREE_MAX_KEYS_PER_NODE + 1.0) / 2.0);
-    // if max_key_per_node = 4, j = 3
-    // copy the first j values of temp to node n
-    // and remaining to new_node
-    n.copy_first(temp, j);
-    //now one file is increased to store the new node;
-    files_till_now++;
-    // next pointer of new_node will be next pointer of n
-    // and next pointer of n will be newly created node new_node
-    new_node.set_next(n.get_next());
-    n.set_next(files_till_now);
-    new_node.copy_last(temp, j);
+    write_node(leaf);
+    write_node(new_leaf);
+    insert_into_parent(leaf.page_id, new_leaf.keys[0], new_leaf_id);
+}
 
-    /*
-      prop_k is key to be inserted into root
-      and prop_new and prop_n are pointers to
-      be attached to this root value
-    */
-    prop_k = temp.get_key(j); // key to be moved to new root
-    prop_new = files_till_now;
-    prop_n = curr_node;
+void BPtree::insert_into_parent(uint32_t old_node_id, int key, uint32_t new_node_id) {
+    if (root_page_id_ == old_node_id) {
+        uint32_t new_root_id = allocate_node(false);
+        BPtreeNode new_root;
+        read_node(new_root_id, new_root);
+        new_root.keys[0] = key;
+        new_root.children[0] = old_node_id;
+        new_root.children[1] = new_node_id;
+        new_root.num_keys = 1;
+        write_node(new_root);
+        root_page_id_ = new_root_id;
+        save_root();
+        return;
+    }
 
-    // write back the two new nodes created
-    write_node(files_till_now, new_node);
-    write_node(curr_node, n);
-    temp.clear_data();
-    new_node.clear_data();
-
-    /* Keep repeating until we reach root
-       or find an empty internal node */
-    while (!finish){
-        if (S.size() == 0){
-            /*Last element splitted was root
-               so create new root and assign meta_data */
-            Btreenode nn(false);
-            // insert key to new root
-            nn.push_key(prop_k);
-            // insert two pointer associated to this key
-            // for left and right
-            nn.push_pointer(prop_n);
-            nn.push_pointer(prop_new);
-            files_till_now++;
-            write_node(files_till_now, nn);
-            root_num = files_till_now;
-            finish = true;
-        }else{
-            std::pair<int, Btreenode> p = S.top();
-            curr_node = p.first;
-            n = p.second;
-            S.pop();
-            // read_node(curr_node, n);
-            if (!n.full()){
-                n.insert_key(prop_k, prop_new);
-                write_node(curr_node, n);
-                finish = true;
-            }else{
-                /* Split is propogating towards top */
-                temp = n;
-                temp.insert_key(prop_k, prop_new);
-                j = floor((BPTREE_MAX_KEYS_PER_NODE + 1.0) / 2.0);
-                n.copy_first(temp, j);
-                files_till_now++;
-                new_node.set_leaf(false);
-                new_node.copy_last(temp, j);
-                write_node(files_till_now, new_node);
-                write_node(curr_node, n);
-                prop_k = temp.get_key(j);
-                prop_new = files_till_now;
-                prop_n = curr_node;
+    uint32_t curr_id = root_page_id_;
+    uint32_t parent_id = INVALID_PAGE_ID;
+    while (curr_id != INVALID_PAGE_ID) {
+        BPtreeNode curr;
+        read_node(curr_id, curr);
+        if (curr.is_leaf) break;
+        bool found = false;
+        for (int i = 0; i <= curr.num_keys; i++) {
+            if (curr.children[i] == old_node_id) {
+                parent_id = curr_id;
+                found = true; break;
             }
         }
+        if (found) break;
+        int i = 0;
+        while (i < curr.num_keys && key >= curr.keys[i]) i++;
+        curr_id = curr.children[i];
     }
 
-    update_meta_data();
-    return BPTREE_INSERT_SUCCESS;
+    BPtreeNode parent;
+    read_node(parent_id, parent);
+    if (parent.num_keys < MAX_KEYS) {
+        int i = parent.num_keys - 1;
+        while (i >= 0 && parent.keys[i] > key) {
+            parent.keys[i + 1] = parent.keys[i];
+            parent.children[i + 2] = parent.children[i + 1];
+            i--;
+        }
+        parent.keys[i + 1] = key;
+        parent.children[i + 2] = new_node_id;
+        parent.num_keys++;
+        write_node(parent);
+    } else {
+        split_internal(parent, key, new_node_id);
+    }
+}
+
+void BPtree::split_internal(BPtreeNode& parent, int key, uint32_t new_node_id) {
+    int temp_keys[MAX_KEYS + 1];
+    uint32_t temp_children[MAX_CHILDREN + 1];
+    int i = 0;
+    while (i < MAX_KEYS && parent.keys[i] < key) {
+        temp_keys[i] = parent.keys[i];
+        temp_children[i] = parent.children[i];
+        i++;
+    }
+    temp_keys[i] = key;
+    temp_children[i] = parent.children[i];
+    temp_children[i+1] = new_node_id;
+    int j = i + 1;
+    while (i < MAX_KEYS) {
+        temp_keys[j] = parent.keys[i];
+        temp_children[j+1] = parent.children[i+1];
+        i++; j++;
+    }
+
+    uint32_t new_int_id = allocate_node(false);
+    BPtreeNode new_int;
+    read_node(new_int_id, new_int);
+    parent.num_keys = 2;
+    for (int k = 0; k < 2; k++) {
+        parent.keys[k] = temp_keys[k];
+        parent.children[k] = temp_children[k];
+    }
+    parent.children[2] = temp_children[2];
+    int push_up = temp_keys[2];
+    new_int.num_keys = 2;
+    for (int k = 0; k < 2; k++) {
+        new_int.keys[k] = temp_keys[k + 3];
+        new_int.children[k] = temp_children[k + 3];
+    }
+    new_int.children[2] = temp_children[5];
+    write_node(parent);
+    write_node(new_int);
+    insert_into_parent(parent.page_id, push_up, new_int_id);
+}
+
+void BPtree::print() {
+    if (root_page_id_ == INVALID_PAGE_ID) {
+        std::cout << "Tree is empty" << std::endl;
+        return;
+    }
+    print_node(root_page_id_, 0);
+}
+
+void BPtree::print_node(uint32_t page_id, int level) {
+    BPtreeNode node;
+    read_node(page_id, node);
+    for (int i = 0; i < level; i++) std::cout << "  ";
+    std::cout << (node.is_leaf ? "[L] " : "[I] ") << "P" << node.page_id << ": ";
+    for (int i = 0; i < node.num_keys; i++) {
+        std::cout << node.keys[i] << (i == node.num_keys - 1 ? "" : ", ");
+    }
+    std::cout << std::endl;
+    if (!node.is_leaf) {
+        for (int i = 0; i <= node.num_keys; i++) {
+            print_node(node.children[i], level + 1);
+        }
+    }
 }

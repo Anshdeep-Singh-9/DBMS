@@ -4,3 +4,8 @@ table/*
 
 # Local planning/design notes for issue work
 Documentation/
+src_old/
+include_old/
+test_bptree
+test_bptree_final
+chat.md

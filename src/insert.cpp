@@ -1,103 +1,126 @@
 #include "insert.h"
 #include "file_handler.h"
 #include "BPtree.h"
+#include "disk_manager.h"
+#include "data_page.h"
+#include "tuple_serializer.h"
 #include "aes.h"
 #include <string>
+#include <vector>
+#include <iostream>
 
-int search_table(char tab_name[]){
-    char str[MAX_NAME+1];
-    strcpy(str,"grep -Fxq ");
-    strcat(str,tab_name);
-    strcat(str," ./table/table_list");
-    int x = system(str);
-    if(x == 0) return 1;
-    else return 0;
-}
+// Removed local search_table definition as it is now in display.h/display.cpp
 
-void insert_command(char tname[], void *data[], int total){
-    table *temp;
-    int ret;
-    BPtree obj(tname);
-    FilePtr fp = open_file_read(tname, const_cast<char*>("r"));
-    temp = (table*)malloc(sizeof(table));
-    fread(temp, sizeof(table), 1, fp);
-
-    ret = obj.insert_record(*((int *)data[0]), temp->rec_count);
-    if(ret == 2){
-        std::cout << "\nkey already exists\n exiting...\n";
-        return ;
+void insert_command(char tname[], const std::vector<TupleValue>& values, const std::vector<ColumnSchema>& schema) {
+    // 1. Prepare the Index
+    BPtree index(tname);
+    
+    // Check if primary key already exists (assuming first column is PK)
+    int pk_value = values[0].int_value;
+    if (index.search(pk_value).page_id != INVALID_PAGE_ID) {
+        std::cout << "Error: Primary Key " << pk_value << " already exists." << std::endl;
+        return;
     }
 
-    fp = open_file(tname, const_cast<char*>("w+"));
-    int file_num = temp->rec_count;
-    temp->rec_count = temp->rec_count + 1;
-    temp->data_size = total;
-    fwrite(temp, sizeof(table), 1, fp);
-    fclose(fp);
+    // 2. Serialize the data into a tuple
+    std::vector<char> tuple_data;
+    if (!TupleSerializer::serialize(schema, values, tuple_data)) {
+        std::cout << "Error: Failed to serialize tuple." << std::endl;
+        return;
+    }
 
-    char *str = (char *)malloc(sizeof(char)*MAX_PATH);
-    sprintf(str, "table/%s/file%d.dat", tname, file_num);
-    FilePtr fpr = fopen(str, "w+");
-    int x;
-    char y[MAX_NAME];
-    for(int j = 0; j < temp->count; j++){
-        if(temp->col[j].type == INT){
-             x = *(int *)data[j];
-            fwrite(&x, sizeof(int), 1, fpr);
-        }
-        else if(temp->col[j].type == VARCHAR){
-            strcpy(y, (char *)data[j]);
-            fwrite(y, sizeof(char)*MAX_NAME, 1, fpr);
+    // 3. Manage the Data Storage (Page-Based)
+    std::string data_path = "table/";
+    data_path += tname;
+    data_path += "/data.dat";
+    
+    DiskManager data_disk(data_path);
+    if (!data_disk.open_or_create()) {
+        std::cout << "Error: Could not open data file." << std::endl;
+        return;
+    }
+
+    // 4. Find a page with enough space
+    uint32_t target_page_id = INVALID_PAGE_ID;
+    DataPage page;
+    bool found_space = false;
+
+    // Search existing pages for space
+    for (uint32_t i = 0; i < data_disk.page_count(); ++i) {
+        char buffer[STORAGE_PAGE_SIZE];
+        data_disk.read_page(i, buffer);
+        page.load_from_buffer(buffer, STORAGE_PAGE_SIZE);
+        if (page.can_store(tuple_data.size())) {
+            target_page_id = i;
+            found_space = true;
+            break;
         }
     }
-    fclose(fpr);
-    free(str);
-    free(temp);
+
+    // If no space, allocate a new page
+    if (!found_space) {
+        target_page_id = data_disk.allocate_page();
+        page.initialize(target_page_id);
+    }
+
+    // 5. Insert tuple into page and write back to disk
+    uint16_t slot_id;
+    if (!page.insert_tuple(tuple_data.data(), tuple_data.size(), slot_id)) {
+        std::cout << "Error: Failed to insert tuple into page." << std::endl;
+        return;
+    }
+    data_disk.write_page(target_page_id, page.data());
+
+    // 6. Update the B+ Tree Index with the new RID
+    RID rid(target_page_id, slot_id);
+    index.insert(pk_value, rid);
+
+    std::cout << "Successfully inserted row into " << tname << " at RID(" 
+              << target_page_id << ", " << slot_id << ")" << std::endl;
 }
 
 void insert(){
-    char *tab = (char*)malloc(sizeof(char)*MAX_PATH+1);
+    char tab[MAX_NAME];
     std::cout << "enter table name: ";
     std::cin >> tab;
+    
     if(search_table(tab) == 0){
         printf("\nTable \" %s \" don't exist\n", tab);
-        free(tab);
         return ;
     }
 
-    std::cout << "\nTable exists, enter data\n\n";
-    table inp1;
+    // Load Table Metadata
+    table meta;
     FilePtr fp = open_file_read(tab, "r");
-    fread(&inp1, sizeof(table), 1, fp);
+    if (!fp) return;
+    fread(&meta, sizeof(table), 1, fp);
     fclose(fp);
 
-    int count = inp1.count;
-    void * data[MAX_ATTR];
-    int total = 0;
+    std::cout << "\nTable exists, enter data for " << meta.count << " columns:\n";
 
-    for(int i = 0; i < count; i++){
-        if(inp1.col[i].type == INT){
-            data[i] = malloc(sizeof(int));
-            total += sizeof(int);
-            std::string inp_int;
-            std::cin >> inp_int;
-            *((int*)data[i]) = std::stoi(inp_int);
-        } else if(inp1.col[i].type == VARCHAR){
-            data[i] = malloc(sizeof(char) * (MAX_NAME + 1));
-            std::string input_str;
-            
-            // Fix: Clear whitespace and use getline for spaces
-            std::cin >> std::ws; 
-            std::getline(std::cin, input_str);
+    std::vector<ColumnSchema> schema;
+    std::vector<TupleValue> values;
 
-            if (input_str.length() >= 2 && input_str.front() == '"' && input_str.back() == '"') {
-                input_str = input_str.substr(1, input_str.length() - 2);
-            }
+    for(int i = 0; i < meta.count; i++){
+        std::cout << meta.col[i].col_name << " (" 
+                  << (meta.col[i].type == INT ? "INT" : "VARCHAR") << "): ";
+        
+        ColumnSchema col_schema(meta.col[i].col_name, 
+                                meta.col[i].type == INT ? STORAGE_COLUMN_INT : STORAGE_COLUMN_VARCHAR,
+                                meta.col[i].size);
+        schema.push_back(col_schema);
 
-            strncpy((char*)data[i], input_str.c_str(), MAX_NAME);
-            total += sizeof(char) * (MAX_NAME + 1);
+        if(meta.col[i].type == INT){
+            int val;
+            std::cin >> val;
+            values.push_back(TupleValue::FromInt(val));
+        } else {
+            std::string val;
+            std::cin >> std::ws;
+            std::getline(std::cin, val);
+            values.push_back(TupleValue::FromVarchar(val));
         }
     }
-    insert_command(tab, data, total);
-    free(tab);
+
+    insert_command(tab, values, schema);
 }
