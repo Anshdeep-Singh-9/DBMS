@@ -67,11 +67,11 @@ void input(){
 				drop();
 				break;
 			case 5:
-				//display();
-				get_query();
+				display();
 				break;
 			case 6:
-				search();
+				// search();
+				cout<<"Work in progress\n";
 				break;
 			case 7:
 				display_meta_data();

@@ -21,7 +21,7 @@
  * - it tells us how to turn values into bytes and bytes back into values
  */
 
-enum StorageColumnType {
+enum StorageColumnType: uint16_t {
     STORAGE_COLUMN_INT = 1,
     STORAGE_COLUMN_VARCHAR = 2
 };
@@ -35,7 +35,7 @@ enum StorageColumnType {
  */
 struct ColumnSchema {
     std::string name;
-    uint16_t type;
+    StorageColumnType type;
     uint16_t max_length;
 
     ColumnSchema()
@@ -43,7 +43,7 @@ struct ColumnSchema {
     }
 
     ColumnSchema(const std::string& column_name,
-                 uint16_t column_type,
+                 StorageColumnType column_type,
                  uint16_t column_max_length = 0)
         : name(column_name),
           type(column_type),
@@ -59,7 +59,7 @@ struct ColumnSchema {
  * - this is one field value before it gets packed into bytes
  */
 struct TupleValue {
-    uint16_t type;
+    StorageColumnType type;
     int32_t int_value;
     std::string string_value;
 
@@ -73,6 +73,8 @@ struct TupleValue {
 
 class TupleSerializer {
   public:
+
+    static void print_tuple(const std::vector<TupleValue>& values);
     static bool serialize(const std::vector<ColumnSchema>& schema,
                           const std::vector<TupleValue>& values,
                           std::vector<char>& tuple_out);
