@@ -121,8 +121,13 @@ bool DiskManager::is_open() const {
 }
 
 uint32_t DiskManager::page_count_unchecked() {
+    // Unset any error state flags of a file stream obj
     file_.clear();
+
+    // Take the file pointer to the end of file: //? Usage= .seekg(offset, position);
     file_.seekg(0, std::ios::end);
+
+    // Find out the no of bytes between start to the current cursor position in a file
     const std::streamoff bytes = file_.tellg();
 
     if (bytes <= 0) {

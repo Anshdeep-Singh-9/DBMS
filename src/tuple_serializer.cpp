@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <limits>
+#include <iostream>
 
 namespace {
 template <typename T>
@@ -131,4 +132,19 @@ bool TupleSerializer::deserialize(const std::vector<ColumnSchema>& schema,
     }
 
     return offset == tuple_bytes.size();
+}
+
+void TupleSerializer::print_tuple (const std::vector<TupleValue>& values){
+    int n= values.size();
+    // cout<<"Called!\n";
+    for(int i=0; i<n; i++){
+        if(values[i].type == STORAGE_COLUMN_INT){
+        std::cout<<values[i].int_value<<"\t\t";
+        }
+        else{
+            std::cout<<values[i].string_value<<"\t\t";
+        }
+    }
+
+    std::cout<<std::endl;
 }

@@ -9,3 +9,4 @@ include_old/
 test_bptree
 test_bptree_final
 chat.md
+test/

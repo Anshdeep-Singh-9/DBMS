@@ -73,6 +73,8 @@ struct TupleValue {
 
 class TupleSerializer {
   public:
+
+    static void print_tuple(const std::vector<TupleValue>& values);
     static bool serialize(const std::vector<ColumnSchema>& schema,
                           const std::vector<TupleValue>& values,
                           std::vector<char>& tuple_out);

@@ -103,10 +103,10 @@ bool DataPage::insert_tuple(const char* tuple_data,
     const uint16_t new_slot_id = page_header.slot_count;
     write_slot(new_slot_id, SlotEntry(tuple_offset, tuple_size));
 
-    page_header.slot_count =
-        static_cast<uint16_t>(page_header.slot_count + 1);
-    page_header.free_start = static_cast<uint16_t>(
-        sizeof(PageHeader) + page_header.slot_count * SLOT_ENTRY_SIZE);
+    page_header.slot_count = static_cast<uint16_t>(page_header.slot_count + 1);
+
+    page_header.free_start = static_cast<uint16_t>(sizeof(PageHeader) + page_header.slot_count * SLOT_ENTRY_SIZE);
+    
     page_header.free_end = tuple_offset;
     write_header(page_header);
 

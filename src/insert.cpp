@@ -34,7 +34,7 @@ void insert_command(char tname[], const std::vector<TupleValue>& values, const s
     data_path += tname;
     data_path += "/data.dat";
     
-    DiskManager data_disk(data_path);
+    DiskManager data_disk(data_path, STORAGE_PAGE_SIZE);
     if (!data_disk.open_or_create()) {
         std::cout << "Error: Could not open data file." << std::endl;
         return;
