@@ -1,11 +1,46 @@
 #include "display.h"
 #include "file_handler.h"
 #include "where.h"
+#include "buffer_pool_manager.h"
 #include "disk_manager.h"
 #include "data_page.h"
 #include "tuple_serializer.h"
 #include <iostream>
 #include <iomanip>
+
+/*
+ * What:
+ * The display path now reads table pages through BufferPoolManager instead of
+ * directly asking DiskManager for every page.
+ *
+ * Why:
+ * Insert was already moved onto the new page-based storage path. To complete
+ * the core read/write story, display should also use the same RAM-side cache
+ * layer. That proves the engine can both write rows into pages and fetch them
+ * back through a DBMS-style memory path.
+ *
+ * Understanding:
+ * Flow of display:
+ * 1. Read table metadata and build the tuple schema
+ * 2. Open data.dat using DiskManager
+ * 3. Ask BufferPoolManager for each page
+ * 4. Load that page into DataPage
+ * 5. Read each tuple slot
+ * 6. Deserialize bytes into values
+ * 7. Print the values
+ * 8. Unpin the page because display only reads it
+ *
+ * Concept used:
+ * - page-based storage
+ * - buffer pool cache hit/miss
+ * - read-only unpin with is_dirty = false
+ * - tuple deserialization
+ *
+ * Layman version:
+ * - before, display directly opened pages from disk every time
+ * - now, display first checks the RAM cache for a page and only goes to disk
+ *   if that page is not already in memory
+ */
 
 // Internal helper for search_table
 int search_table(char tab_name[]){
@@ -60,14 +95,18 @@ void display() {
         return;
     }
 
+    BufferPoolManager buffer_pool(4, &data_disk);
+
     int row_count = 0;
     // Iterate through all pages
     for (uint32_t i = 0; i < data_disk.page_count(); ++i) {
-        char buffer[STORAGE_PAGE_SIZE];
-        if (!data_disk.read_page(i, buffer)) continue;
+        char* frame_data = buffer_pool.fetch_page(i);
+        if (frame_data == NULL) {
+            continue;
+        }
 
         DataPage page;
-        page.load_from_buffer(buffer, STORAGE_PAGE_SIZE);
+        page.load_from_buffer(frame_data, STORAGE_PAGE_SIZE);
 
         // Iterate through all slots in the page
         for (uint16_t slot_id = 0; slot_id < page.slot_count(); ++slot_id) {
@@ -87,6 +126,8 @@ void display() {
                 }
             }
         }
+
+        buffer_pool.unpin_page(i, false);
     }
 
     if (row_count == 0) {

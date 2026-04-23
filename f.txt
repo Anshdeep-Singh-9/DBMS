@@ -1,0 +1,400 @@
+Create a polished, visually appealing `.docx` document from the content below.
+
+Goal:
+Turn this SRS content into a professional, submission-ready academic document.
+
+Output:
+- File name: `Grp_4.docx`
+- Document title: `MiniDB`
+- Language style: simple English, clear and readable
+
+Formatting requirements:
+- Keep strong visual hierarchy.
+- Use elegant heading styles and readable body text.
+- Use clean spacing, section separators, callout boxes, and subtle accent colors.
+- Keep bullets and tables visually clean.
+- Use code-style blocks for commands and technical notes.
+- Add places with `// Add Diagram Here:` comments where figures can be inserted later.
+
+Now use the following content and convert it into the DOCX:
+
+============================================================
+SOFTWARE REQUIREMENTS SPECIFICATION (SRS)
+Project: MiniDB
+Team: Group 4
+============================================================
+
+# 1. *Project Overview*
+
+## 1.1 *Project Title*
+**MiniDB - Design and Implementation of a Mini Relational Database Engine from Scratch**
+
+## 1.2 *Problem Statement*
+Most student projects use an already available database and build features on top of it.  
+Our goal is different: we are building the database engine itself to understand core DBMS internals like storage, indexing, query parsing, and execution.
+
+## 1.3 *Project Objective*
+Build a simplified relational database engine that can:
+- create and manage tables
+- store and fetch records from disk
+- parse and execute basic SQL-like queries
+- use B+ Tree indexing for faster search
+- gradually move to page-based storage and buffer pool architecture
+
+## 1.4 *Scope*
+This project includes:
+- table creation, listing, and deletion
+- data insertion and record search
+- metadata management
+- query parsing and filtering
+- B+ Tree indexing
+- storage redesign with pages, RID, and slotted pages
+- buffer pool planning and future implementation
+- optional API/frontend extensions for usability
+
+// Add Diagram Here: High-level architecture of MiniDB (Parser -> Execution -> Storage/Index)
+
+---
+
+# 2. *Current System State and Evolution*
+
+## 2.1 *Current Working Capabilities (Already Available)*
+- menu-driven CLI database interaction
+- show/create/drop table operations
+- insert row functionality
+- basic search with primary key and non-primary key paths
+- SQL-like select handling (`SELECT`, basic `WHERE`)
+- metadata file handling
+- B+ Tree based indexed lookup for primary key path
+
+## 2.2 *Legacy Internal Model (Old Path)*
+- table metadata stored separately
+- records historically tied to per-row file flow
+- indexed lookup linked to record-number style access
+
+## 2.3 *New Foundation Added (Issue 2 Work)*
+The project now has a storage foundation for DBMS-style internals:
+- `RID (page_id, slot_id)` as record address
+- `PageHeader` and `SlotEntry` structures
+- `DiskManager` for page-level allocate/read/write
+- `DataPage` for slotted-page tuple placement
+- `TupleSerializer` for value <-> bytes conversion
+
+## 2.4 *Why This Evolution Matters*
+- clean path toward buffer pool integration
+- clean path toward `key -> RID` indexing
+- cleaner separation of storage, indexing, and execution layers
+- scalable architecture compared to ad-hoc row file handling
+
+// Add Diagram Here: Before vs After storage flow
+
+---
+
+# 3. *Functional Requirements*
+
+## 3.1 *Table Management*
+- FR-1: System shall create a table with user-defined columns and data types.
+- FR-2: System shall list existing tables.
+- FR-3: System shall drop/delete selected tables.
+- FR-4: System shall maintain table metadata.
+
+## 3.2 *Data Operations*
+- FR-5: System shall insert rows into selected table.
+- FR-6: System shall fetch rows by primary key search.
+- FR-7: System shall support non-primary-key scan search.
+
+## 3.3 *Query Handling*
+- FR-8: System shall accept SQL-like query input.
+- FR-9: System shall support `SELECT *` and selected columns.
+- FR-10: System shall support basic `WHERE` filters.
+- FR-11: System shall support operators `=`, `<`, `>`.
+- FR-12: System shall support logical conditions (`AND`, `OR`) as implementation progresses.
+
+## 3.4 *Indexing*
+- FR-13: System shall maintain B+ Tree for key-based lookup.
+- FR-14: System shall return indexed search result faster than brute-force scan on relevant cases.
+
+## 3.5 *Storage Foundation (New)*
+- FR-15: System shall support page-level disk I/O.
+- FR-16: System shall represent record locations using RID.
+- FR-17: System shall store multiple tuples in a slotted page.
+- FR-18: System shall serialize and deserialize tuple values.
+
+---
+
+# 4. *Non-Functional Requirements*
+
+## 4.1 *Performance*
+- Indexed lookup should be faster than full scan for key-based queries.
+- Page-based internals should reduce future disk overhead through buffering.
+
+## 4.2 *Maintainability*
+- Code should be modular by layer: storage, index, parser, execution.
+- Structures should be reusable for future features (buffer pool, API, joins).
+
+## 4.3 *Usability*
+- Query flow should remain simple and understandable for developers.
+- CLI behavior should provide clear messages on success and failure.
+
+## 4.4 *Scalability (Academic Scope)*
+- Design should support extension to larger datasets and better caching.
+
+## 4.5 *Reliability*
+- Storage write and read paths should remain deterministic and testable.
+
+---
+
+# 5. *System Architecture*
+
+## 5.1 *Layered View*
+1. **CLI / Query Input Layer**  
+   Accepts user commands and SQL-like statements.
+2. **Parser Layer**  
+   Tokenizes/parses query statements into execution-ready form.
+3. **Execution Layer**  
+   Routes query to scan path or index path.
+4. **Index Layer (B+ Tree)**  
+   Handles key-based lookup and index traversal.
+5. **Storage Layer**  
+   Handles metadata, tuple bytes, pages, RID mapping.
+6. **Disk Layer**  
+   Handles physical read/write of pages.
+7. **(Planned) Buffer Pool Layer**  
+   Caches pages in memory using LRU policy.
+
+// Add Diagram Here: Layered architecture block diagram
+
+## 5.2 *Key Data Flow*
+`Query -> Parse -> Plan/Route -> (Index scan OR Sequential scan) -> Storage Access -> Result`
+
+## 5.3 *Storage Path (New Foundation)*
+`Row values -> TupleSerializer -> DataPage insert -> slot_id -> RID -> DiskManager page write`
+
+---
+
+# 6. *Data Design and Internal Structures*
+
+## 6.1 *RID Definition*
+`RID = (page_id, slot_id)`
+
+Purpose:
+- uniquely locate a tuple inside page-based storage
+
+## 6.2 *Page Header*
+Contains:
+- page identifier
+- slot count
+- free space pointers
+- page type
+
+## 6.3 *Slot Entry*
+Contains:
+- tuple offset
+- tuple length
+
+## 6.4 *Slotted Page Layout*
+- header at front
+- slot directory grows forward
+- tuple data grows backward
+- free space remains in middle
+
+// Add Diagram Here: Slotted page internal memory layout
+
+## 6.5 *Tuple Serialization*
+Current support:
+- `INT`
+- `VARCHAR`
+
+Purpose:
+- convert logical row values to bytes for storage
+- convert bytes back to values for reads
+
+---
+
+# 7. *Technology Stack and Usage*
+
+| Technology | Usage in Project | One-line Purpose |
+| --- | --- | --- |
+| **C++ (Core)** | Main engine implementation | Used to build storage, indexing, parsing, and execution internals |
+| **STL (vector/map/etc.)** | Internal data structures | Used for efficient in-memory handling of records, nodes, and metadata |
+| **File I/O (`fstream`, `FILE*`)** | Disk persistence | Used to store metadata, pages, and table data on physical disk |
+| **Make + GCC/G++** | Build system | Used to compile and link the MiniDB engine |
+| **B+ Tree (custom)** | Index layer | Used for faster key-based lookup |
+| **Slotted Page model** | Storage layer | Used to store multiple tuples inside fixed-size pages |
+| **RID addressing** | Record location model | Used to locate tuples as `(page_id, slot_id)` |
+| **Tuple Serializer (custom)** | Storage encoding layer | Used to convert row values into bytes and back |
+| **Buffer Pool (planned)** | Memory caching layer | Will reduce disk I/O by caching frequently used pages |
+| **Node.js / C++ sockets (planned)** | API layer | Will expose DB operations externally |
+| **React (planned optional)** | Frontend demo | Will provide UI-based query interaction |
+
+---
+
+# 8. *Implemented So Far and Work In Progress (Based on Current Merged Code)*
+
+## 8.1 *Implemented So Far (Merged and Visible in Main Branch)*
+
+- CLI-based DB flow is working (show/create/insert/drop/search/display paths).
+- Metadata handling and table file structure are active.
+- B+ Tree based primary-key search path is active.
+- Parser/query fixes for string literal handling and spaces in query inputs are merged.
+- File-handling refactor and safety updates are merged.
+- Storage foundation PR is merged:
+  - `RID`
+  - `PageHeader` / `SlotEntry`
+  - `DiskManager` (page allocate/read/write)
+  - `DataPage` (slotted-page operations)
+  - `TupleSerializer` (`INT`, `VARCHAR` value <-> byte conversion)
+
+## 8.2 *What Is Still In Progress*
+
+- full runtime wiring of new page-based path into old insert/search flow
+- migration of index mapping to clear `key -> RID` usage across execution path
+- full buffer pool manager (LRU) integration in runtime
+- advanced SQL coverage (`AND/OR` maturity, join path expansion)
+- API and frontend integration completion
+
+---
+
+# 9. *Team Technical Status (Simple and Human)*
+
+## 9.1 *Member-wise Ownership and Progress*
+
+| Member | What Is Already Done (Merged / Active) | What They Are Working On Next |
+| --- | --- | --- |
+| **Aryan Saini** | Added storage foundation: `RID`, page metadata structures, `DiskManager`, `DataPage`, `TupleSerializer`. Also improved contributor ownership docs. | Integrating full page-based storage path with runtime operations and preparing memory-side flow for buffer pool behavior. |
+| **Hemant Singh** | Disk management role defined in architecture and team plan; contribution path aligned with storage subteam direction. | Implementing/expanding disk-side persistence flow and supporting full storage-runtime integration with Aryan. |
+| **Anshdeep Singh** | Core integration and major repo-level engineering updates merged (file handling evolution, table creation hardening/security validation). | Further module integration and stabilization across storage, parser, indexing, and execution layers. |
+| **Parth Khatri** | File-handling refactor merged; contributor structure/documentation contribution merged. | B+ Tree + SQL layer alignment and stronger query-to-index execution path. |
+| **Aditya Sirsalkar** | Parser/query fixes merged (string literal handling, spaces support in INSERT/SELECT, query-related fix issues). | UI/API connected query workflow and additional parser-side quality improvements. |
+
+## 9.2 *Storage Subteam Link*
+
+**Aryan Saini + Hemant Singh** are linked for storage path delivery:
+- Aryan: internal storage architecture and memory-side page model.
+- Hemant: disk-side page persistence and storage I/O operationalization.
+
+// Add Diagram Here: Team ownership map by architecture layer
+
+---
+
+# 10. *Module-wise Feature Plan*
+
+## 10.1 *Implemented / Active*
+- table operations (create/show/drop)
+- row insertion and search
+- B+ Tree indexed primary-key path
+- metadata handling
+- basic query flow
+- parser fixes for string/space handling
+- page/RID/slotted-page/serialization foundation
+
+## 10.2 *In Progress / Planned Next*
+- full integration of new page-based path into runtime query flow
+- index path normalization with `RID`
+- buffer pool manager (LRU)
+- richer parser support and query execution coverage
+- join support (basic nested-loop style)
+- API and optional frontend demo
+
+---
+
+# 11. *User Interaction and Command Expectations*
+
+## 11.1 *CLI Interaction*
+Expected user flow:
+1. Login/start program
+2. Choose operation from menu
+3. Provide table/query input
+4. View result/output or error
+
+## 11.2 *Supported Command Intent (Current scope)*
+```sql
+SHOW TABLES;
+CREATE TABLE ...;
+INSERT INTO ...;
+SELECT ... FROM ...;
+SELECT ... FROM ... WHERE ...;
+DROP TABLE ...;
+```
+
+## 11.3 *Validation Expectations*
+- invalid table/column inputs should return clear errors
+- invalid query format should fail safely
+
+---
+
+# 12. *Assumptions and Constraints*
+
+## 12.1 *Assumptions*
+- project is educational and modularly evolving
+- team will integrate modules iteratively
+- SQL support is intentionally gradual
+
+## 12.2 *Constraints*
+- no full transaction management in this phase
+- no crash recovery subsystem in this phase
+- no enterprise-grade concurrency layer in this phase
+
+---
+
+# 13. *Testing Strategy (Practical Academic Level)*
+
+## 13.1 *Unit-level checks*
+- page allocate/read/write checks
+- tuple serialize/deserialize checks
+- B+ Tree insertion and lookup checks
+
+## 13.2 *Integration checks*
+- create -> insert -> search flow
+- query parse -> execute -> fetch flow
+- storage + index consistency checks
+
+## 13.3 *Expected result checks*
+- inserted tuple can be read correctly
+- indexed search returns expected record
+- invalid input gives clear error output
+
+---
+
+# 14. *Timeline (Indicative)*
+
+| Phase | Work Focus | Output |
+| --- | --- | --- |
+| **Phase 1** | Existing code understanding and architecture mapping | technical baseline |
+| **Phase 2** | Storage model finalization | page/RID/slotted-page design |
+| **Phase 3** | Disk + page foundation implementation | DiskManager + DataPage |
+| **Phase 4** | Serialization + runtime integration | row storage path |
+| **Phase 5** | Index alignment and query flow improvements | better lookup and parser execution |
+| **Phase 6** | Buffer pool + extensions | performance + advanced features |
+
+// Add Diagram Here: Timeline chart / phase progression visual
+
+---
+
+# 15. *Expected Outcome*
+
+By the end of this project, MiniDB should provide:
+- a clear educational implementation of core DBMS internals
+- practical understanding of storage, indexing, and query execution
+- a modular engine that can be demonstrated and extended
+
+It should also show:
+- team-level technical ownership
+- measurable architecture progression from prototype to structured DB engine
+
+---
+
+# 16. *Conclusion*
+
+MiniDB is not just a query shell.  
+It is a step-by-step build of a database engine from core internals upward.
+
+This SRS defines:
+- what is already implemented
+- what is newly added through storage redesign
+- what each team member owns technically
+- what will be delivered next in a structured, realistic roadmap
+
+============================================================
+End of SRS Content
+============================================================

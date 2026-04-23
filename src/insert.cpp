@@ -1,6 +1,7 @@
 #include "insert.h"
 #include "file_handler.h"
 #include "BPtree.h"
+#include "buffer_pool_manager.h"
 #include "disk_manager.h"
 #include "data_page.h"
 #include "tuple_serializer.h"
@@ -8,9 +9,43 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <cstring>
 
 // Removed local search_table definition as it is now in display.h/display.cpp
 
+/*
+ * What:
+ * This insert path now uses the BufferPoolManager instead of talking directly
+ * to DiskManager for every page access.
+ *
+ * Why:
+ * Insert is one of the first places where page reuse matters. While searching
+ * for a page with free space, the engine may touch several pages. A buffer
+ * pool lets us cache those pages in RAM and update them through frames.
+ *
+ * Understanding:
+ * Flow of one insert:
+ * 1. Build tuple values in memory
+ * 2. Serialize tuple to bytes
+ * 3. Ask buffer pool for candidate pages
+ * 4. If a page has space, modify that page in RAM
+ * 5. Mark the frame dirty and unpin it
+ * 6. Buffer pool flushes dirty pages back to disk later
+ * 7. Store key -> RID in the B+ Tree
+ *
+ * Concept used:
+ * - page-based storage
+ * - slotted pages
+ * - RID based row addressing
+ * - buffer pool caching
+ * - dirty page tracking
+ * - pin / unpin discipline
+ *
+ * Layman version:
+ * - before, insert directly touched the disk page file
+ * - now, insert first works on a RAM copy of the page and then the buffer
+ *   pool decides when that page goes back to disk
+ */
 void insert_command(char tname[], const std::vector<TupleValue>& values, const std::vector<ColumnSchema>& schema) {
     // 1. Prepare the Index
     BPtree index(tname);
@@ -40,36 +75,55 @@ void insert_command(char tname[], const std::vector<TupleValue>& values, const s
         return;
     }
 
+    BufferPoolManager buffer_pool(4, &data_disk);
+
     // 4. Find a page with enough space
     uint32_t target_page_id = INVALID_PAGE_ID;
     DataPage page;
     bool found_space = false;
+    char* target_buffer = NULL;
 
     // Search existing pages for space
     for (uint32_t i = 0; i < data_disk.page_count(); ++i) {
-        char buffer[STORAGE_PAGE_SIZE];
-        data_disk.read_page(i, buffer);
-        page.load_from_buffer(buffer, STORAGE_PAGE_SIZE);
+        char* frame_data = buffer_pool.fetch_page(i);
+        if (frame_data == NULL) {
+            continue;
+        }
+
+        page.load_from_buffer(frame_data, STORAGE_PAGE_SIZE);
         if (page.can_store(tuple_data.size())) {
             target_page_id = i;
             found_space = true;
+            target_buffer = frame_data;
             break;
         }
+
+        buffer_pool.unpin_page(i, false);
     }
 
-    // If no space, allocate a new page
+    
     if (!found_space) {
-        target_page_id = data_disk.allocate_page();
+        target_buffer = buffer_pool.new_page(target_page_id);
+        if (target_buffer == NULL) {
+            std::cout << "Error: Could not allocate a new page in the buffer pool." << std::endl;
+            return;
+        }
+
         page.initialize(target_page_id);
+        std::memcpy(target_buffer, page.data(), STORAGE_PAGE_SIZE);
     }
 
-    // 5. Insert tuple into page and write back to disk
+    // 5. Insert tuple into the in-memory page frame
     uint16_t slot_id;
     if (!page.insert_tuple(tuple_data.data(), tuple_data.size(), slot_id)) {
         std::cout << "Error: Failed to insert tuple into page." << std::endl;
+        buffer_pool.unpin_page(target_page_id, false);
         return;
     }
-    data_disk.write_page(target_page_id, page.data());
+
+    std::memcpy(target_buffer, page.data(), STORAGE_PAGE_SIZE);
+    buffer_pool.unpin_page(target_page_id, true);
+    buffer_pool.flush_page(target_page_id);
 
     // 6. Update the B+ Tree Index with the new RID
     RID rid(target_page_id, slot_id);

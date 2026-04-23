@@ -47,6 +47,18 @@ bool DiskManager::open_or_create() {
 
 void DiskManager::close() {
     if (file_.is_open()) {
+        // Hemant's branch tightened the persistence step here:
+        // flush pending writes before closing the file handle.
+        //
+        // Why:
+        // if the program has written pages recently, we do not want close()
+        // to silently drop buffered writes at the std::fstream layer.
+        //
+        // Understanding:
+        // this is still not a full crash-recovery guarantee, but it ensures
+        // the disk manager itself pushes its pending stream buffer to the file
+        // before the handle is released.
+        file_.flush();
         file_.close();
     }
 }
@@ -65,6 +77,12 @@ uint32_t DiskManager::allocate_page() {
     file_.clear();
     file_.seekp(page_offset(new_page_id), std::ios::beg);
     file_.write(&empty_page[0], static_cast<std::streamsize>(empty_page.size()));
+    // Hemant's persistence update kept allocate_page() eager about writing the
+    // newly appended empty page to disk right away.
+    //
+    // Why:
+    // a freshly allocated page should physically exist in the file as soon as
+    // the allocation call succeeds, especially for persistence tests.
     file_.flush();
 
     if (!file_) {
@@ -99,6 +117,15 @@ bool DiskManager::write_page(uint32_t page_id, const char* buffer) {
     file_.clear();
     file_.seekp(page_offset(page_id), std::ios::beg);
     file_.write(buffer, static_cast<std::streamsize>(page_size_));
+    // Hemant's branch also kept write_page() eager about flushing page writes.
+    //
+    // Why:
+    // this makes the raw DiskManager safer and easier to test in isolation.
+    //
+    // Important note:
+    // this is good for demonstrating persistence, but higher-level policies
+    // like BufferPoolManager can still decide when pages become dirty and when
+    // to call write_page() in the first place.
     file_.flush();
 
     return file_.good();
