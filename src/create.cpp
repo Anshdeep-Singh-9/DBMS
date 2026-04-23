@@ -20,6 +20,7 @@ int record_size(table *temp){
     return size;
 }
 
+
 table * create_table(char name[], int count){
     std::unordered_set <string> create_col_set;
     table *temp = new table();
@@ -29,7 +30,6 @@ table * create_table(char name[], int count){
     temp->count = count;
     temp->rec_count = 0;
     temp->data_size = 0;
-
     cout << "\nEnter col name, type(1.int 2.varchar), and max size\n";
     for(int i = 0; i < count; i++){
         std::string t_name, type, size;
@@ -45,6 +45,8 @@ table * create_table(char name[], int count){
     return temp;
 }
 
+
+
 void create(){
     char *name = (char*)malloc(sizeof(char)*MAX_NAME);
     std::cout << "\nEnter table name: \n";
@@ -56,7 +58,6 @@ void create(){
         return;
     }
 
-    // Automate directory creation
     struct stat st = {0};
     if (stat("./table", &st) == -1) mkdir("./table", 0775);
 
@@ -71,6 +72,7 @@ void create(){
     std::cin >> count;
     table *temp = create_table(name, count);
 
+    
     if(temp != NULL){
         temp->size = record_size(temp);
         store_meta_data(temp);

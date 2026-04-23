@@ -4,27 +4,22 @@
 #include<iostream>
 #include<algorithm>
 
-//tokenize select query for processing
 void tokenize_select(char query[]){
     vector<string> token_vector;
     string current_token = "";
     bool in_quotes = false;
-
-    for(int i = 0; query[i] != '\0'; i++){
+    for(int i = 0; query[i] != '\0'; i++) {
         char c = query[i];
-
-        // Toggle state when quotes are encountered
         if(c == '"'){
             in_quotes = !in_quotes;
             current_token += c; 
         }
-        // Split on delimiters only if NOT inside quotes
-        else if(!in_quotes && (c == ' ' || c == ',' || c == ';' || c == '\n')){
+        else if(!in_quotes && (c == ' '|| c == ',' || c ==';' || c == '\n')){
             if(!current_token.empty()){
                 token_vector.push_back(current_token);
                 current_token = "";
             }
-        }
+        } 
         else {
             if(c != '\n') {
                 current_token += c;
@@ -39,7 +34,6 @@ void tokenize_select(char query[]){
     process_select(token_vector);
 }
 
-//tokenize create query for processing
 void tokenize_create(char query[]){
     char buffer[1024];
     vector <string> token_vector;

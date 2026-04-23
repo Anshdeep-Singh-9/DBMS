@@ -14,7 +14,7 @@ void select_particular_query(std::string table_name, std::string col_to_search, 
     char *tab = (char*)malloc(sizeof(char)*MAX_NAME);
     strcpy(tab, table_name.c_str());
     int check = search_table(tab);
-    if(check == 1){
+    if(check == 1) {
         /*
         access the meta data of table
         */
