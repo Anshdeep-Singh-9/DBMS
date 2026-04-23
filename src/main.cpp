@@ -67,7 +67,8 @@ void input(){
 				drop();
 				break;
 			case 5:
-				display();
+				get_query();
+				//display();
 				break;
 			case 6:
 				// search();
