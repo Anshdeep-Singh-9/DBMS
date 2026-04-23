@@ -5,7 +5,6 @@
 #include "disk_manager.h"
 #include "data_page.h"
 #include "tuple_serializer.h"
-#include "aes.h"
 #include <string>
 #include <vector>
 #include <iostream>
