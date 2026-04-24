@@ -57,7 +57,7 @@ void input(){
 				show_tables();
 				break;
 			case 2:
-				create();
+				get_query();
 				//parse_create();
 				break;
 			case 3:
