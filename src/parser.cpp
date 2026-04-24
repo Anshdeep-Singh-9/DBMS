@@ -66,10 +66,18 @@ void get_query(){
     char *token = strtok(buffer, " \n");
     if(token){
         string token_temp(token);
+        
+        // Convert to lowercase so it works even if the user types "SELECT"
+        std::transform(token_temp.begin(), token_temp.end(), token_temp.begin(), ::tolower);
+        
         if(token_temp == "select"){
             tokenize_select(query);
         }else if(token_temp == "create"){
             tokenize_create(query);
+        } else {
+            // NEW: Print error for wrong syntax. 
+            // After this prints, the function ends and main.cpp safely asks for the next menu option.
+            cout << "\nError: Wrong syntax or unsupported command.\n";
         }
     }
     free(query);
