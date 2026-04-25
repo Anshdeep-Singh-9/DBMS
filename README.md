@@ -144,9 +144,25 @@ Once logged in, MiniDB presents a numbered menu:
 | `DROP TABLE` | Menu option 4 → enter table name | ✅ Working |
 | `SELECT *` / `SELECT cols` | Menu option 5 → type query | ✅ Working |
 | View table metadata | Menu option 7 | ✅ Working |
+| REST API Querying | `make api` → `./server` | ✅ Working |
 | Search / `WHERE` filtering | Menu option 6 | 🚧 In progress |
 
-### Query Syntax (for options 2 and 5)
+---
+
+## API Integration
+
+MiniDB now includes a REST API server built with the [Crow](https://github.com/CrowCpp/Crow) microframework. This allows you to query your database from external languages like Node.js, Python, or via web browsers.
+
+### Quick Start API
+1. Build the API: `make api`
+2. Start the server: `./server`
+3. Query a table: `curl http://localhost:18080/table/Students`
+
+For more details, see the [API Documentation](./Documentation/api.md).
+
+---
+
+## Query Syntax (for options 2 and 5)
 
 ```sql
 -- Create
