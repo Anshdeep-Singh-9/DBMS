@@ -8,6 +8,51 @@
 #include <iomanip>
 #include <iostream>
 
+#define RESET   "\033[0m"
+#define BOLD    "\033[1m"
+#define BLUE    "\033[34m"
+#define WHITE   "\033[97m"
+
+void print_table(const std::vector<ColumnSchema>& schema, const std::vector<std::vector<TupleValue>>& table_data) {
+    if (schema.empty()) return;
+
+    // Print Header
+    std::cout << "\n" << BOLD << BLUE;
+    for (const auto& col : schema) {
+        std::cout << std::left << std::setw(20) << col.name;
+    }
+    std::cout << RESET << "\n";
+
+    // Print Separator
+    std::cout << BLUE;
+    for (size_t i = 0; i < schema.size(); ++i) {
+        std::cout << "--------------------";
+    }
+    std::cout << RESET << "\n";
+
+    // Print Rows
+    std::cout << WHITE;
+    for (const auto& row : table_data) {
+        for (const auto& val : row) {
+            if (val.type == STORAGE_COLUMN_INT) {
+                std::cout << std::left << std::setw(20) << val.int_value;
+            } else {
+                std::cout << std::left << std::setw(20) << val.string_value;
+            }
+        }
+        std::cout << "\n";
+    }
+    std::cout << RESET;
+
+    // Print Bottom Separator
+    std::cout << BLUE;
+    for (size_t i = 0; i < schema.size(); ++i) {
+        std::cout << "--------------------";
+    }
+    std::cout << RESET << "\n";
+    std::cout << BOLD << WHITE << "Total rows: " << table_data.size() << RESET << "\n\n";
+}
+
 /*
  * What:
  * The display path now reads table pages through BufferPoolManager instead of
