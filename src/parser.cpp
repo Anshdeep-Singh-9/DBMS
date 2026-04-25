@@ -11,8 +11,12 @@
 #include <cctype>
 #include <vector>
 #include <cstdlib>
+#include <limits>
+#include <fstream>
+#include <filesystem>
 
 using namespace std;
+namespace fs = std::filesystem;
 
 extern void execute_create_query(string table_name, vector<pair<string, string>> cols);
 extern void insert_command(char tname[], const vector<TupleValue>& values, const vector<ColumnSchema>& schema);
@@ -250,49 +254,150 @@ void tokenize_insert(char query[]) {
     delete meta;
 }
 
-void get_query() {
-    char *query;
-    query = (char*) malloc(sizeof(char) * 1024);
+void tokenize_show(char query[]) {
+    string q(query);
 
-    printf("Enter Query :\n");
+    while (!q.empty() && (q.back() == ';' || q.back() == '\n' || q.back() == ' ')) {
+        q.pop_back();
+    }
 
-    fflush(stdin);
-    fflush(stdout);
+    q = trim_string(q);
 
-    fgets(query, 1024, stdin);
-    fgets(query, 1024, stdin);
+    if (q == "show tables") {
+        show_tables();
+    } else {
+        cout << "Syntax Error: Supported SHOW syntax is:\n";
+        cout << "SHOW TABLES;\n";
+    }
+}
 
-    string lowered_query = to_lower_query(string(query));
+void tokenize_drop(char query[]) {
+    string q(query);
+
+    while (!q.empty() && (q.back() == ';' || q.back() == '\n' || q.back() == ' ')) {
+        q.pop_back();
+    }
+
+    q = trim_string(q);
+
+    stringstream ss(q);
+    string drop_word, table_word, table_name, extra;
+    ss >> drop_word >> table_word >> table_name >> extra;
+
+    if (drop_word != "drop" || table_word != "table" || table_name.empty() || !extra.empty()) {
+        cout << "Syntax Error: Use DROP TABLE table_name;\n";
+        return;
+    }
+
+    char tab[MAX_NAME];
+    strncpy(tab, table_name.c_str(), MAX_NAME - 1);
+    tab[MAX_NAME - 1] = '\0';
+
+    if (search_table(tab) == 0) {
+        cout << "ERROR: Table '" << table_name << "' does not exist.\n";
+        return;
+    }
+
+    string table_path = "./table/" + table_name;
+    try {
+        if (fs::exists(table_path)) {
+            fs::remove_all(table_path);
+        }
+    } catch (...) {
+        cout << "ERROR: Could not remove table directory for '" << table_name << "'.\n";
+        return;
+    }
+
+    ifstream in("./table/table_list");
+    ofstream out("./table/table_list.tmp");
+
+    if (!in.is_open() || !out.is_open()) {
+        cout << "ERROR: Could not update table registry.\n";
+        return;
+    }
+
+    string name;
+    while (in >> name) {
+        if (name != table_name) {
+            out << name << "\n";
+        }
+    }
+
+    in.close();
+    out.close();
+
+    remove("./table/table_list");
+    rename("./table/table_list.tmp", "./table/table_list");
+
+    cout << "Success: Table '" << table_name << "' dropped successfully.\n";
+}
+
+void print_query_syntax_help() {
+    cout << "\nSupported Query Syntax\n";
+    cout << "--------------------------------------------------\n";
+    cout << "SHOW TABLES;\n";
+    cout << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n";
+    cout << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n";
+    cout << "SELECT * FROM students;\n";
+    cout << "SELECT name, dept FROM students;\n";
+    cout << "SELECT * FROM students WHERE id = 1;\n";
+    cout << "DROP TABLE students;\n";
+    cout << "--------------------------------------------------\n\n";
+}
+void execute_query_string(string input_query) {
+    input_query = trim_string(input_query);
+
+    if (input_query.empty()) {
+        cout << "Error: Empty query.\n";
+        return;
+    }
+
+    string lowered_query = to_lower_query(input_query);
 
     char buffer[1024];
-    strcpy(buffer, lowered_query.c_str());
+    strncpy(buffer, lowered_query.c_str(), sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
 
     char *token = strtok(buffer, " \n");
 
     if (token) {
         string token_temp(token);
 
+        char final_query[1024];
+        strncpy(final_query, lowered_query.c_str(), sizeof(final_query) - 1);
+        final_query[sizeof(final_query) - 1] = '\0';
+
         if (token_temp == "select") {
-            char final_query[1024];
-            strcpy(final_query, lowered_query.c_str());
             tokenize_select(final_query);
         }
         else if (token_temp == "create") {
-            char final_query[1024];
-            strcpy(final_query, lowered_query.c_str());
             tokenize_create(final_query);
         }
         else if (token_temp == "insert") {
-            char final_query[1024];
-            strcpy(final_query, lowered_query.c_str());
             tokenize_insert(final_query);
+        }
+        else if (token_temp == "show") {
+            tokenize_show(final_query);
+        }
+        else if (token_temp == "drop") {
+            tokenize_drop(final_query);
         }
         else {
             cout << "\nError: Wrong syntax or unsupported command.\n";
+            print_query_syntax_help();
         }
     }
+}
 
-    free(query);
+void get_query() {
+    string input_query;
+
+    cout << "Enter Query:\n";
+
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    getline(cin, input_query);
+
+    execute_query_string(input_query);
 }
 
 void parse_create() {
