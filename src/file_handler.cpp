@@ -96,12 +96,12 @@ void store_meta_data_fstream(struct table *t_ptr) {
 
 struct table* fetch_meta_data(string name){
     fstream_t fp = open_file_read_fstream(name.c_str(), READ_BIN); 
-    
+
     if(!fp.is_open()) return NULL; 
 
     struct table* t = new table();
     fp.read(reinterpret_cast<char*>(t), sizeof(struct table));
-    
+
     if(fp.fail() || fp.gcount() != (std::streamsize)sizeof(struct table)){
         cout << "ERROR! Failed to read metadata for table: " << name << endl;
         delete t;
@@ -110,4 +110,30 @@ struct table* fetch_meta_data(string name){
     }
     fp.close();
     return t;
+}
+
+void system_check() {
+    try {
+        fs::path exe_path = fs::canonical("/proc/self/exe");
+        fs::path root_dir = exe_path.parent_path().parent_path().parent_path();
+        fs::path table_dir = root_dir / "table";
+        fs::path table_list = table_dir / "table_list";
+
+        if (!fs::exists(table_dir)) {
+            fs::create_directories(table_dir);
+        }
+
+        if (!fs::exists(table_list)) {
+            ofstream file(table_list);
+            file.close();
+        }
+    } catch (...) {
+        if (!fs::exists("table")) {
+            fs::create_directories("table");
+        }
+        if (!fs::exists("table/table_list")) {
+            ofstream file("table/table_list");
+            file.close();
+        }
+    }
 }

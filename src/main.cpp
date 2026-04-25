@@ -6,6 +6,7 @@
 #include "search.h"
 #include "drop.h"
 #include "parser.h"
+#include "file_handler.h"
 
 #include <iostream>
 #include <cstdio>
@@ -218,32 +219,6 @@ void input() {
     }
 }
 
-void system_check() {
-    try {
-        fs::path exe_path = fs::canonical("/proc/self/exe");
-        fs::path root_dir = exe_path.parent_path().parent_path().parent_path();
-        fs::path table_dir = root_dir / "table";
-        fs::path table_list = table_dir / "table_list";
-
-        if (!fs::exists(table_dir)) {
-            fs::create_directories(table_dir);
-        }
-
-        if (!fs::exists(table_list)) {
-            ofstream file(table_list);
-            file.close();
-        }
-    } catch (...) {
-        if (!fs::exists("table")) {
-            fs::create_directories("table");
-        }
-
-        if (!fs::exists("table/table_list")) {
-            ofstream file("table/table_list");
-            file.close();
-        }
-    }
-}
 
 void start_system() {
     system_check();

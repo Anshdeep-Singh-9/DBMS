@@ -7,6 +7,7 @@ BIN_PATH = $(BUILD_PATH)/bin
 
 # executable #
 BIN_NAME = miniDB
+API_BIN_NAME = server
 
 # extensions #
 SRC_EXT = cpp
@@ -34,6 +35,27 @@ default_target: release
 release: export CXXFLAGS := $(CXXFLAGS) $(COMPILE_FLAGS)
 release: dirs
 	@$(MAKE) all
+
+.PHONY: api
+api: release setup_api
+	@echo "Building API Server: $(API_BIN_NAME)"
+	$(CXX) $(CXXFLAGS) $(INCLUDES) api/server.cpp $(filter-out build/main.o, $(OBJECTS)) -lpthread -o $(BIN_PATH)/$(API_BIN_NAME)
+	@$(RM) $(API_BIN_NAME)
+	@ln -s $(BIN_PATH)/$(API_BIN_NAME) $(API_BIN_NAME)
+
+.PHONY: setup_api
+setup_api:
+	@if [ ! -f include/crow_all.h ]; then \
+		echo "Downloading Crow library..."; \
+		curl -L https://github.com/CrowCpp/Crow/releases/download/v1.2.0/crow_all.h -o include/crow_all.h; \
+	fi
+	@if [ ! -d include/asio ]; then \
+		echo "Downloading Asio library..."; \
+		curl -L https://github.com/chriskohlhoff/asio/archive/refs/tags/asio-1-28-0.tar.gz -o asio.tar.gz; \
+		tar -xzf asio.tar.gz; \
+		cp -r asio-asio-1-28-0/asio/include/* include/; \
+		rm -rf asio-asio-1-28-0 asio.tar.gz; \
+	fi
 
 .PHONY: dirs
 dirs:
