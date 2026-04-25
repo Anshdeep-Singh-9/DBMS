@@ -1,6 +1,5 @@
 build/
-table/*
-!table/table_list
+table/
 
 # Local planning/design notes for issue work
 Documentation/
@@ -10,3 +9,4 @@ test_bptree
 test_bptree_final
 chat.md
 test/
+tests/

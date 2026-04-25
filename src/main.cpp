@@ -14,8 +14,12 @@
 #include <string>
 #include <termios.h>
 #include <unistd.h>
+#include <filesystem>
+#include <fstream>
 
 using namespace std;
+
+namespace fs = std::filesystem;
 
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
@@ -203,7 +207,41 @@ void input() {
     }
 }
 
+
+void system_check() {
+    try {
+        // Program runs from build/bin/miniDB
+        // exe_path = .../miniDB/build/bin/miniDB
+        // parent1 = .../miniDB/build/bin
+        // parent2 = .../miniDB/build
+        // parent3 = .../miniDB (root)
+        fs::path exe_path = fs::canonical("/proc/self/exe");
+        fs::path root_dir = exe_path.parent_path().parent_path().parent_path();
+        fs::path table_dir = root_dir / "table";
+        fs::path table_list = table_dir / "table_list";
+
+        if (!fs::exists(table_dir)) {
+            fs::create_directories(table_dir);
+        }
+
+        if (!fs::exists(table_list)) {
+            ofstream file(table_list);
+            file.close();
+        }
+    } catch (...) {
+        // Fallback for non-linux or if canonical fails
+        if (!fs::exists("table")) {
+            fs::create_directories("table");
+        }
+        if (!fs::exists("table/table_list")) {
+            ofstream file("table/table_list");
+            file.close();
+        }
+    }
+}
+
 void start_system() {
+    system_check();
     clear_screen();
     print_banner();
     cout << GREEN << "Welcome to MiniDB Monitor.\n" << RESET;
