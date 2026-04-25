@@ -1,28 +1,87 @@
 #include "parser.h"
 #include "display.h"
+#include "file_handler.h"
+#include "insert.h"
+#include "tuple_serializer.h"
 
 #include <cstring>
 #include <iostream>
 #include <algorithm>
 #include <sstream>
 #include <cctype>
+#include <vector>
+#include <cstdlib>
 
 using namespace std;
 
+extern void execute_create_query(string table_name, vector<pair<string, string>> cols);
+extern void insert_command(char tname[], const vector<TupleValue>& values, const vector<ColumnSchema>& schema);
+
+string trim_string(string s) {
+    while (!s.empty() && isspace((unsigned char)s.front())) s.erase(s.begin());
+    while (!s.empty() && isspace((unsigned char)s.back())) s.pop_back();
+    return s;
+}
+
+string remove_quotes(string s) {
+    s = trim_string(s);
+    if (s.size() >= 2) {
+        if ((s.front() == '\'' && s.back() == '\'') ||
+            (s.front() == '"' && s.back() == '"')) {
+            return s.substr(1, s.size() - 2);
+        }
+    }
+    return s;
+}
+
 string to_lower_query(string q) {
-    bool in_quotes = false;
+    bool in_single = false;
+    bool in_double = false;
 
     for (int i = 0; i < (int)q.size(); i++) {
-        if (q[i] == '"' || q[i] == '\'') {
-            in_quotes = !in_quotes;
+        if (q[i] == '\'' && !in_double) {
+            in_single = !in_single;
         }
-
-        if (!in_quotes) {
-            q[i] = tolower(q[i]);
+        else if (q[i] == '"' && !in_single) {
+            in_double = !in_double;
+        }
+        else if (!in_single && !in_double) {
+            q[i] = static_cast<char>(tolower((unsigned char)q[i]));
         }
     }
 
     return q;
+}
+
+vector<string> split_values(string s) {
+    vector<string> values;
+    string current = "";
+    bool in_single = false;
+    bool in_double = false;
+
+    for (char c : s) {
+        if (c == '\'' && !in_double) {
+            in_single = !in_single;
+            current += c;
+        }
+        else if (c == '"' && !in_single) {
+            in_double = !in_double;
+            current += c;
+        }
+        else if (c == ',' && !in_single && !in_double) {
+            values.push_back(trim_string(current));
+            current = "";
+        }
+        else {
+            current += c;
+        }
+    }
+
+    if (!current.empty()) {
+        values.push_back(trim_string(current));
+    }
+
+    return values;
 }
 
 void tokenize_select(char query[]) {
@@ -56,8 +115,6 @@ void tokenize_select(char query[]) {
 
     process_select(token_vector);
 }
-
-extern void execute_create_query(string table_name, vector<pair<string, string>> cols);
 
 void tokenize_create(char query[]) {
     string q(query);
@@ -96,6 +153,103 @@ void tokenize_create(char query[]) {
     execute_create_query(table_name, columns);
 }
 
+void tokenize_insert(char query[]) {
+    string q(query);
+
+    size_t values_pos = q.find(" values ");
+    if (values_pos == string::npos) {
+        cout << "Syntax Error: Invalid INSERT statement. Missing VALUES keyword.\n";
+        return;
+    }
+
+    string before_values = trim_string(q.substr(0, values_pos));
+    stringstream ss(before_values);
+
+    string insert_word, into_word, table_name;
+    ss >> insert_word >> into_word >> table_name;
+
+    if (insert_word != "insert" || into_word != "into" || table_name.empty()) {
+        cout << "Syntax Error: Use INSERT INTO table_name VALUES (...);\n";
+        return;
+    }
+
+    size_t open_pos = q.find('(', values_pos);
+    size_t close_pos = q.rfind(')');
+
+    if (open_pos == string::npos || close_pos == string::npos || close_pos <= open_pos) {
+        cout << "Syntax Error: INSERT values must be inside parentheses.\n";
+        return;
+    }
+
+    string values_str = q.substr(open_pos + 1, close_pos - open_pos - 1);
+    vector<string> raw_values = split_values(values_str);
+
+    table* meta = fetch_meta_data(table_name);
+    if (meta == NULL) {
+        cout << "ERROR: Table '" << table_name << "' does not exist or metadata could not be loaded.\n";
+        return;
+    }
+
+    if ((int)raw_values.size() != meta->count) {
+        cout << "ERROR: Column count mismatch.\n";
+        cout << "Expected " << meta->count << " values, received " << raw_values.size() << ".\n";
+        delete meta;
+        return;
+    }
+
+    vector<ColumnSchema> schema;
+    vector<TupleValue> values;
+
+    for (int i = 0; i < meta->count; i++) {
+        ColumnSchema col_schema(
+            meta->col[i].col_name,
+            meta->col[i].type == INT ? STORAGE_COLUMN_INT : STORAGE_COLUMN_VARCHAR,
+            meta->col[i].size
+        );
+
+        schema.push_back(col_schema);
+
+        string value = remove_quotes(raw_values[i]);
+
+        if (meta->col[i].type == INT) {
+            try {
+                size_t used = 0;
+                int number = stoi(value, &used);
+
+                if (used != value.size()) {
+                    cout << "ERROR: Invalid INT value for column '" << meta->col[i].col_name << "'.\n";
+                    delete meta;
+                    return;
+                }
+
+                values.push_back(TupleValue::FromInt(number));
+            } catch (...) {
+                cout << "ERROR: Invalid INT value for column '" << meta->col[i].col_name << "'.\n";
+                delete meta;
+                return;
+            }
+        }
+        else if (meta->col[i].type == VARCHAR) {
+            if ((int)value.size() > meta->col[i].size) {
+                cout << "ERROR: Value too long for column '" << meta->col[i].col_name << "'.\n";
+                cout << "Max allowed size: " << meta->col[i].size << "\n";
+                delete meta;
+                return;
+            }
+
+            values.push_back(TupleValue::FromVarchar(value));
+        }
+    }
+
+    char tname[MAX_NAME];
+    strncpy(tname, table_name.c_str(), MAX_NAME - 1);
+    tname[MAX_NAME - 1] = '\0';
+
+    insert_command(tname, values, schema);
+
+    delete meta;
+}
+
 void get_query() {
     char *query;
     query = (char*) malloc(sizeof(char) * 1024);
@@ -127,6 +281,11 @@ void get_query() {
             char final_query[1024];
             strcpy(final_query, lowered_query.c_str());
             tokenize_create(final_query);
+        }
+        else if (token_temp == "insert") {
+            char final_query[1024];
+            strcpy(final_query, lowered_query.c_str());
+            tokenize_insert(final_query);
         }
         else {
             cout << "\nError: Wrong syntax or unsupported command.\n";

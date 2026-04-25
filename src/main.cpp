@@ -89,7 +89,7 @@ void help() {
 
     cout << "1. Show all tables in database\n";
     cout << "2. Create table using CREATE TABLE query\n";
-    cout << "3. Insert data into an existing table\n";
+    cout << "3. Insert data using INSERT INTO query\n";
     cout << "4. Drop table\n";
     cout << "5. Display table contents using SELECT query\n";
     cout << "6. Search table or search inside table\n";
@@ -100,8 +100,10 @@ void help() {
     cout << BOLD << "Example CREATE query:\n" << RESET;
     cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50));\n\n" << RESET;
 
-    cout << BOLD << "Example SELECT query:\n" << RESET;
-    cout << GREEN << "SELECT * FROM students;\n" << RESET;
+    cout << BOLD << "Example INSERT query:\n" << RESET;
+    cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n\n" << RESET;
+
+    cout << BOLD << "Example SELECT query:\n" << RESET;cout << GREEN << "SELECT * FROM students;\n" << RESET;
     cout << GREEN << "SELECT name FROM students;\n" << RESET;
 
     print_small_line();
@@ -117,7 +119,7 @@ int take_input_option() {
 
     cout << CYAN << " 1 " << RESET << "Show all tables in database\n";
     cout << CYAN << " 2 " << RESET << "Create table\n";
-    cout << CYAN << " 3 " << RESET << "Insert into table\n";
+    cout << CYAN << " 3 " << RESET << "Insert into table using query\n";
     cout << CYAN << " 4 " << RESET << "Drop table\n";
     cout << CYAN << " 5 " << RESET << "Display table contents\n";
     cout << CYAN << " 6 " << RESET << "Search table / search inside table\n";
@@ -166,9 +168,12 @@ void input() {
                 break;
 
             case 3:
+                
                 print_section("Insert Into Table");
-                insert();
-                pause_screen(true);
+                cout << YELLOW << "Enter INSERT INTO query.\n" << RESET;
+                cout << DIM << "Example: INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n\n" << RESET;
+                get_query();
+                pause_screen(false);
                 break;
 
             case 4:
