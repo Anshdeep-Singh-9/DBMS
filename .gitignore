@@ -6,7 +6,6 @@ include/asio/
 include/asio.hpp
 api/server_bin
 # Local planning/design notes for issue work
-Documentation/
 src_old/
 include_old/
 test_bptree
