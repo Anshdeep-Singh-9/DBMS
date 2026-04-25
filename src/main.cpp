@@ -18,8 +18,12 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <cctype>
 
 using namespace std;
+
+void system_check();
+void execute_query_string(string input_query);
 
 namespace fs = std::filesystem;
 
@@ -87,24 +91,31 @@ void help() {
     cout << BOLD << "MiniDB Supported Operations\n" << RESET;
     print_small_line();
 
-    cout << "1. Show all tables in database\n";
-    cout << "2. Create table using CREATE TABLE query\n";
-    cout << "3. Insert data using INSERT INTO query\n";
-    cout << "4. Drop table\n";
-    cout << "5. Display table contents using SELECT query\n";
-    cout << "6. Search table or search inside table\n";
-    cout << "7. Print metadata of a table\n";
-    cout << "8. Help\n";
-    cout << "9. Quit\n\n";
+    cout << "1. Query Console\n";
+    cout << "2. Search table or search inside table\n";
+    cout << "3. Print metadata of a table\n";
+    cout << "4. Help\n";
+    cout << "5. Quit\n\n";
 
-    cout << BOLD << "Example CREATE query:\n" << RESET;
-    cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50));\n\n" << RESET;
+    cout << BOLD << "Supported Query Console Syntax\n" << RESET;
+    print_small_line();
 
-    cout << BOLD << "Example INSERT query:\n" << RESET;
-    cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n\n" << RESET;
+    cout << GREEN << "SHOW TABLES;\n" << RESET;
+    cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n" << RESET;
+    cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n" << RESET;
+    cout << GREEN << "SELECT * FROM students;\n" << RESET;
+    cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
+    cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
+    cout << GREEN << "DROP TABLE students;\n" << RESET;
 
-    cout << BOLD << "Example SELECT query:\n" << RESET;cout << GREEN << "SELECT * FROM students;\n" << RESET;
-    cout << GREEN << "SELECT name FROM students;\n" << RESET;
+    cout << "\n" << BOLD << "Notes\n" << RESET;
+    print_small_line();
+    cout << "- Keywords are case-insensitive.\n";
+    cout << "- First column must be INT because it is used as primary key.\n";
+    cout << "- INSERT values must follow the same order as table columns.\n";
+    cout << "- VARCHAR values should be written inside quotes.\n";
+    cout << "- DROP TABLE is available only through Query Console now.\n";
+    cout << "- Type BACK or EXIT inside Query Console to return to the main menu.\n";
 
     print_small_line();
 }
@@ -117,27 +128,85 @@ int take_input_option() {
     cout << BOLD << WHITE << " MAIN MENU\n" << RESET;
     print_small_line();
 
-    cout << CYAN << " 1 " << RESET << "Show all tables in database\n";
-    cout << CYAN << " 2 " << RESET << "Create table\n";
-    cout << CYAN << " 3 " << RESET << "Insert into table using query\n";
-    cout << CYAN << " 4 " << RESET << "Drop table\n";
-    cout << CYAN << " 5 " << RESET << "Display table contents\n";
-    cout << CYAN << " 6 " << RESET << "Search table / search inside table\n";
-    cout << CYAN << " 7 " << RESET << "Print metadata of a table\n";
-    cout << CYAN << " 8 " << RESET << "Help\n";
-    cout << CYAN << " 9 " << RESET << "Quit\n";
+    cout << CYAN << " 1 " << RESET << "Query Console  (CREATE / INSERT / SELECT / SHOW / DROP)\n";
+    cout << CYAN << " 2 " << RESET << "Search table / search inside table\n";
+    cout << CYAN << " 3 " << RESET << "Print metadata of a table\n";
+    cout << CYAN << " 4 " << RESET << "Help\n";
+    cout << CYAN << " 5 " << RESET << "Quit\n";
 
     print_line();
 
-    cout << BOLD << "Enter choice [1-9]: " << RESET;
+    cout << BOLD << "Enter choice [1-5]: " << RESET;
     cin >> option;
 
-    if (option.length() != 1 || option[0] < '1' || option[0] > '9') {
-        cout << RED << "\nInvalid input. Please enter a number from 1 to 9.\n" << RESET;
+    if (option.length() != 1 || option[0] < '1' || option[0] > '5') {
+        cout << RED << "\nInvalid input. Please enter a number from 1 to 5.\n" << RESET;
         return -1;
     }
 
     return option[0] - '0';
+}
+
+string normalize_console_command(string s) {
+    while (!s.empty() && isspace((unsigned char)s.front())) {
+        s.erase(s.begin());
+    }
+
+    while (!s.empty() && isspace((unsigned char)s.back())) {
+        s.pop_back();
+    }
+
+    if (!s.empty() && s.back() == ';') {
+        s.pop_back();
+    }
+
+    for (char &c : s) {
+        c = static_cast<char>(tolower((unsigned char)c));
+    }
+
+    return s;
+}
+
+void print_query_console_syntax() {
+    cout << BOLD << "Syntax Guide\n" << RESET;
+    print_small_line();
+
+    cout << GREEN << "SHOW TABLES;\n" << RESET;
+    cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n" << RESET;
+    cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n" << RESET;
+    cout << GREEN << "SELECT * FROM students;\n" << RESET;
+    cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
+    cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
+    cout << GREEN << "DROP TABLE students;\n" << RESET;
+
+    print_small_line();
+}
+
+void query_console_loop() {
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+    while (true) {
+        cout << "\n" << BOLD << "MiniDB Query Console" << RESET << "\n";
+        print_small_line();
+
+        cout << DIM << "Type BACK or EXIT to return to main menu.\n\n" << RESET;
+
+        print_query_console_syntax();
+
+        cout << BOLD << "\nminidb> " << RESET;
+
+        string query;
+        getline(cin, query);
+
+        string command = normalize_console_command(query);
+
+        if (command == "back" || command == "exit") {
+            cout << GREEN << "Returning to main menu...\n" << RESET;
+            break;
+        }
+
+        execute_query_string(query);
+    }
 }
 
 void input() {
@@ -154,60 +223,29 @@ void input() {
 
         switch (c) {
             case 1:
-                print_section("Tables in Database");
-                show_tables();
-                pause_screen(true);
+                print_section("Query Console");
+                query_console_loop();
+                pause_screen(false);
                 break;
 
             case 2:
-                print_section("Create Table");
-                cout << YELLOW << "Enter CREATE TABLE query.\n" << RESET;
-                cout << DIM << "Example: CREATE TABLE students (id INT, name VARCHAR(50));\n\n" << RESET;
-                get_query();
-                pause_screen(false);
-                break;
-
-            case 3:
-                
-                print_section("Insert Into Table");
-                cout << YELLOW << "Enter INSERT INTO query.\n" << RESET;
-                cout << DIM << "Example: INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n\n" << RESET;
-                get_query();
-                pause_screen(false);
-                break;
-
-            case 4:
-                print_section("Drop Table");
-                drop();
-                pause_screen(true);
-                break;
-
-            case 5:
-                print_section("Display Table Contents");
-                cout << YELLOW << "Enter SELECT query.\n" << RESET;
-                cout << DIM << "Example: SELECT * FROM students;\n\n" << RESET;
-                get_query();
-                pause_screen(false);
-                break;
-
-            case 6:
                 print_section("Search");
                 cout << YELLOW << "Work in progress\n" << RESET;
                 pause_screen(true);
                 break;
 
-            case 7:
+            case 3:
                 print_section("Table Metadata");
                 display_meta_data();
                 pause_screen(true);
                 break;
 
-            case 8:
+            case 4:
                 help();
                 pause_screen(true);
                 break;
 
-            case 9:
+            case 5:
                 print_section("Exit");
                 cout << GREEN << "MiniDB closed successfully.\n" << RESET;
                 cout << BOLD << CYAN << "\nGood bye!\n\n" << RESET;
@@ -224,7 +262,6 @@ void input() {
     }
 }
 
-
 void start_system() {
     system_check();
 
@@ -232,7 +269,7 @@ void start_system() {
     print_banner();
 
     cout << GREEN << "Welcome to MiniDB Monitor.\n" << RESET;
-    cout << DIM << "Use the numbered menu to perform DBMS operations.\n\n" << RESET;
+    cout << DIM << "Use Query Console to execute SQL-like commands.\n\n" << RESET;
 
     input();
 }
