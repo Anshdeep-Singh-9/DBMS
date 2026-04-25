@@ -1,4 +1,3 @@
-
 #include "declaration.h"
 #include "BPtree.h"
 #include "create.h"
@@ -7,155 +6,260 @@
 #include "search.h"
 #include "drop.h"
 #include "parser.h"
-// #include "../../sql-parser/src/SQLParser.h"
+
+#include <iostream>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#include <termios.h>
+#include <unistd.h>
 
 using namespace std;
 
-void help(){
-	printf("\n\n\nWELCOME TO miniDB\n\n"
-			"miniDB is a simple database design engine in which you can implement basic queries.\n\nQUERIES SUPPORTED ARE::"
-			"\n1.create a new table\n2.insert data into existing table\n3.drop table\n4.search in the table\n\n"
-			"1.For creating table \na>enter the table name\nb>enter no. of columns\nc>enter col name,datatype(1.INT\t2.VARCHAR"
-			") and maximum size for it.\n"
-			"\n2.For inserting data into table\na>enter table name\nb>it will display how many details to be filled\nc>"
-			"enter all the details\nd>your data is inserted into the table\n\n"
-			"3.For deleting table just enter the table name\n\n"
-			"4.For search into table \na>you can search for a particular table if it exists or not\nb>"
-			"b>You can search for a particular entry if it exists in the table or not\n"
-			"c>For particular entry searching , search is based on primary key, so enter col[0] value of table to search\n\n"
-			);
+#define RESET   "\033[0m"
+#define BOLD    "\033[1m"
+#define DIM     "\033[2m"
+#define CYAN    "\033[36m"
+#define GREEN   "\033[32m"
+#define YELLOW  "\033[33m"
+#define RED     "\033[31m"
+#define WHITE   "\033[97m"
+
+void clear_screen() {
+    system("clear");
 }
 
-int take_input_option(){
-	string option;
-	fflush(stdout);
-	fflush(stdin);
-	printf("\n\n=================================================================\n\n");
-	printf("\n select the query to implement\n");
-	printf("\n1.show all tables in database\n2.create table\n3.insert into table\n4.drop table\n5.display table contents\n6.search table or search inside table\n7.print the meta-data of a table\n8.help\n9.quit\n\n");
-	cin>>option;
-	if(option.length() >1){
-		printf("\nwrong input\nexiting...\n\n");
-		exit(0);
-	}else{
-		if(option[0] > 48 && option[0]<59){
-			return option[0]-48;
-		}
-		else{
-			printf("\nwrong input\nexiting...\n\n");
-			exit(0);
-		}
-	}
+void print_line() {
+    cout << CYAN << "======================================================================" << RESET << "\n";
 }
 
-//take input option and perform operation
-void input(){
-	int c = take_input_option();
-	while(c<10 && c>0){
-		switch(c){
-			case 1:
-				show_tables();
-				break;
-			case 2:
-				get_query();
-				//parse_create();
-				break;
-			case 3:
-				insert();
-				break;
-			case 4:
-				drop();
-				break;
-			case 5:
-				get_query();
-				//display();
-				break;
-			case 6:
-				// search();
-				cout<<"Work in progress\n";
-				break;
-			case 7:
-				display_meta_data();
-				break;
-			case 9:
-				printf("\nexiting...\n");
-				printf("\n\t\t good bye!!!\n\n");
-				exit(0);
-				break;
-			case 8:
-				help();
-				break;
-			default:
-				printf("\nplease choose a correct option\n");
-				break;
-		}
-		c = take_input_option();
-	}
+void print_small_line() {
+    cout << DIM << "----------------------------------------------------------------------" << RESET << "\n";
 }
 
-//starting the system
-void start_system(){
-	system("clear");
-	printf("\n\t\t\tWELCOME\n\n");
-	printf("\t\tWelcome to miniDB monitor \n\n");
-	//cout<<"\t\tType h for help and q for quit\n\n";
-	input();
+void pause_screen() {
+    cout << DIM << "\nPress ENTER to continue..." << RESET;
+    cin.ignore(10000, '\n');
+    cin.get();
 }
 
-string get_password(){
-	
-	struct termios termios_p;
-
-	//Fetch the attributes of the current terminal window.
-	tcgetattr(STDIN_FILENO, &termios_p);
-	
-	//Unset the ECHO flag so that user input isn't displayed on the terminal window.
-	termios_p.c_lflag &= ~ECHO;
-	
-	tcsetattr(STDIN_FILENO, TCSANOW, &termios_p);
-
-	cout<<"Enter Password: ";
-	string pass;
-	cin>>pass;
-
-	//Set the ECHO flag back.
-	termios_p.c_lflag |= ECHO;
-
-	tcsetattr(STDIN_FILENO, TCSANOW, &termios_p);
-
-	cout<<"\n";
-	return pass;
+void print_banner() {
+    print_line();
+    cout << BOLD << CYAN;
+    cout << "  __  __ _       _ ____  ____  \n";
+    cout << " |  \\/  (_)_ __ (_)  _ \\| __ ) \n";
+    cout << " | |\\/| | | '_ \\| | | | |  _ \\ \n";
+    cout << " | |  | | | | | | | |_| | |_) |\n";
+    cout << " |_|  |_|_|_| |_|_|____/|____/ \n";
+    cout << RESET;
+    cout << BOLD << WHITE << "\n        MiniDB Engine - Terminal DBMS Monitor\n" << RESET;
+    cout << DIM << "        Storage Engine | B+ Tree Index | Buffer Pool | SQL Parser\n" << RESET;
+    print_line();
 }
 
-int main(int argc,char *argv[]) {
-	//cout << "!!!Hello World!!!" << endl; // prints !!!Hello World!!!
-	//confirm identity of user
-	//./deepdb -u username -p password
+void print_section(string title) {
+    clear_screen();
+    print_banner();
+    cout << BOLD << WHITE << " " << title << RESET << "\n";
+    print_small_line();
+}
 
-	if(argc == 4 || argc == 5){
-		if(strcmp(argv[1],"-u") == 0 && strcmp(argv[3],"-p") == 0){
-			//check identification
-			char *username = (char*)malloc(sizeof(char)*MAX_NAME);
-			strcpy(username,argv[2]);
-			const string mypass="pass";
+void help() {
+    print_section("Help");
 
-			string password=get_password();
+    cout << BOLD << "MiniDB Supported Operations\n" << RESET;
+    print_small_line();
 
-			if(password == mypass) cout <<"Correct password!\n";
-			else {
-				cout <<"Incorrect password!\n";
-				return 0;
-			}
-		}else{
-			printf("\nusage:: ./minidb -u username -p password\n.exiting...\n\n");
-			return 0;
-		}
-	}else{
-		printf("\nusage:: ./minidb -u username -p password\n.exiting...\n\n");
-		return 0;
-	}
+    cout << "1. Show all tables in database\n";
+    cout << "2. Create table using CREATE TABLE query\n";
+    cout << "3. Insert data into an existing table\n";
+    cout << "4. Drop table\n";
+    cout << "5. Display table contents using SELECT query\n";
+    cout << "6. Search table or search inside table\n";
+    cout << "7. Print metadata of a table\n";
+    cout << "8. Help\n";
+    cout << "9. Quit\n\n";
 
-	start_system();
+    cout << BOLD << "Example CREATE query:\n" << RESET;
+    cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50));\n\n" << RESET;
 
-	return 0;
+    cout << BOLD << "Example SELECT query:\n" << RESET;
+    cout << GREEN << "SELECT * FROM students;\n" << RESET;
+    cout << GREEN << "SELECT name FROM students;\n" << RESET;
+
+    print_small_line();
+}
+
+int take_input_option() {
+    string option;
+
+    print_line();
+    cout << BOLD << WHITE << " MAIN MENU\n" << RESET;
+    print_small_line();
+
+    cout << CYAN << " 1 " << RESET << "Show all tables in database\n";
+    cout << CYAN << " 2 " << RESET << "Create table\n";
+    cout << CYAN << " 3 " << RESET << "Insert into table\n";
+    cout << CYAN << " 4 " << RESET << "Drop table\n";
+    cout << CYAN << " 5 " << RESET << "Display table contents\n";
+    cout << CYAN << " 6 " << RESET << "Search table / search inside table\n";
+    cout << CYAN << " 7 " << RESET << "Print metadata of a table\n";
+    cout << CYAN << " 8 " << RESET << "Help\n";
+    cout << CYAN << " 9 " << RESET << "Quit\n";
+
+    print_line();
+    cout << BOLD << "Enter choice [1-9]: " << RESET;
+
+    cin >> option;
+
+    if (option.length() != 1 || option[0] < '1' || option[0] > '9') {
+        cout << RED << "\nInvalid input. Please enter a number from 1 to 9.\n" << RESET;
+        return -1;
+    }
+
+    return option[0] - '0';
+}
+
+void input() {
+    while (true) {
+        int c = take_input_option();
+
+        if (c == -1) {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            pause_screen();
+            clear_screen();
+            print_banner();
+            continue;
+        }
+
+        switch (c) {
+            case 1:
+                print_section("Tables in Database");
+                show_tables();
+                pause_screen();
+                break;
+
+            case 2:
+                print_section("Create Table");
+                cout << YELLOW << "Enter CREATE TABLE query.\n" << RESET;
+                cout << DIM << "Example: CREATE TABLE students (id INT, name VARCHAR(50));\n\n" << RESET;
+                get_query();
+                pause_screen();
+                break;
+
+            case 3:
+                print_section("Insert Into Table");
+                insert();
+                pause_screen();
+                break;
+
+            case 4:
+                print_section("Drop Table");
+                drop();
+                pause_screen();
+                break;
+
+            case 5:
+                print_section("Display Table Contents");
+                cout << YELLOW << "Enter SELECT query.\n" << RESET;
+                cout << DIM << "Example: SELECT * FROM students;\n\n" << RESET;
+                get_query();
+                pause_screen();
+                break;
+
+            case 6:
+                print_section("Search");
+                cout << YELLOW << "Work in progress\n" << RESET;
+                pause_screen();
+                break;
+
+            case 7:
+                print_section("Table Metadata");
+                display_meta_data();
+                pause_screen();
+                break;
+
+            case 8:
+                help();
+                pause_screen();
+                break;
+
+            case 9:
+                print_section("Exit");
+                cout << GREEN << "MiniDB closed successfully.\n" << RESET;
+                cout << BOLD << CYAN << "\nGood bye!\n\n" << RESET;
+                exit(0);
+
+            default:
+                cout << RED << "\nPlease choose a correct option.\n" << RESET;
+                pause_screen();
+                break;
+        }
+
+        clear_screen();
+        print_banner();
+    }
+}
+
+void start_system() {
+    clear_screen();
+    print_banner();
+    cout << GREEN << "Welcome to MiniDB Monitor.\n" << RESET;
+    cout << DIM << "Use the numbered menu to perform DBMS operations.\n\n" << RESET;
+    input();
+}
+
+string get_password() {
+    struct termios termios_p;
+
+    tcgetattr(STDIN_FILENO, &termios_p);
+    termios_p.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &termios_p);
+
+    cout << BOLD << "Enter Password: " << RESET;
+
+    string pass;
+    cin >> pass;
+
+    termios_p.c_lflag |= ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &termios_p);
+
+    cout << "\n";
+    return pass;
+}
+
+int main(int argc, char *argv[]) {
+    if (argc == 4 || argc == 5) {
+        if (strcmp(argv[1], "-u") == 0 && strcmp(argv[3], "-p") == 0) {
+            const string mypass = "pass";
+
+            clear_screen();
+            print_banner();
+
+            cout << BOLD << "User: " << RESET << argv[2] << "\n\n";
+
+            string password = get_password();
+
+            if (password == mypass) {
+                cout << GREEN << "Correct password!\n" << RESET;
+                pause_screen();
+            } else {
+                cout << RED << "Incorrect password!\n" << RESET;
+                return 0;
+            }
+        } else {
+            cout << RED << "\nInvalid usage.\n" << RESET;
+            cout << "Usage: ./minidb -u username -p\n";
+            return 0;
+        }
+    } else {
+        cout << RED << "\nInvalid usage.\n" << RESET;
+        cout << "Usage: ./minidb -u username -p\n";
+        return 0;
+    }
+
+    start_system();
+    return 0;
 }
