@@ -14,7 +14,7 @@ using namespace std;
 void help(){
 	printf("\n\n\nWELCOME TO miniDB\n\n"
 			"miniDB is a simple database design engine in which you can implement basic queries.\n\nQUERIES SUPPORTED ARE::"
-			"\n1.create a new table\n2.insert data into existing table\n3.drop table\n4.search in the table\n\n"
+			"\n1.create a new table\n2.insert data into existing table\n3.drop table\n4.search in the table\n5.SELECT with WHERE clause\n\n"
 			"1.For creating table \na>enter the table name\nb>enter no. of columns\nc>enter col name,datatype(1.INT\t2.VARCHAR"
 			") and maximum size for it.\n"
 			"\n2.For inserting data into table\na>enter table name\nb>it will display how many details to be filled\nc>"
@@ -23,6 +23,17 @@ void help(){
 			"4.For search into table \na>you can search for a particular table if it exists or not\nb>"
 			"b>You can search for a particular entry if it exists in the table or not\n"
 			"c>For particular entry searching , search is based on primary key, so enter col[0] value of table to search\n\n"
+			"5.SELECT with WHERE clause (option 5 - Display table contents)\n"
+			"  Syntax:  select <col1,col2,...|*> from <table> where <column> = <value>\n"
+			"  Examples:\n"
+			"    select * from students where id = 3\n"
+			"    select name from students where age = 20\n"
+			"  Search strategy:\n"
+			"    - WHERE on INT primary key (col[0])  => B+ Tree lookup  (fast, O(log n))\n"
+			"    - WHERE on any other column           => Linear scan     (O(n))\n"
+			"  Notes:\n"
+			"    - Only '=' operator is supported\n"
+			"    - Column names are case-sensitive (use exact name as in CREATE)\n\n"
 			);
 }
 
