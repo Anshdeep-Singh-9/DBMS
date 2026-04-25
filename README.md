@@ -1,64 +1,212 @@
-# 🗄️ MiniDB Engine (Relational Database from Scratch)
+<div align="center">
 
-> A simplified, custom-built relational database engine designed to replicate the core internal functionalities of modern Database Management Systems (DBMS). 
+# 🗄️ MiniDB Engine
 
-[![Language: C++](https://img.shields.io/badge/Language-C++-blue.svg)](https://isocpp.org/)
-[![Build: Make](https://img.shields.io/badge/Build-Make-orange.svg)]()
+### A Relational Database Built From Scratch in C++
 
-Unlike projects that act as wrappers around existing databases (like SQLite or MySQL), this project is built entirely **from scratch**. It features custom implementation of disk-based storage management, B+ Tree indexing, LRU memory caching, and a homegrown query execution engine.
+*Disk storage · B+ Tree indexing · LRU buffer pool · Custom query engine — zero dependencies on existing databases*
 
----
+[![Language: C++](https://img.shields.io/badge/Language-C++17-blue?style=flat-square&logo=cplusplus)](https://isocpp.org/)
+[![Build: Make](https://img.shields.io/badge/Build-Make%20%2F%20GCC-orange?style=flat-square)]()
+[![Interface: Terminal](https://img.shields.io/badge/Interface-Terminal-black?style=flat-square)]()
+[![Status: Active](https://img.shields.io/badge/Status-Active%20Development-green?style=flat-square)]()
 
-## ✨ Key Features
-
-### 🛠️ Core Capabilities
-* **Custom Storage Engine:** Data is stored on the physical disk using block-based file storage. Each table is allocated separate files/directories to manage its blocks.
-* **B+ Tree Indexing:** Implements a multi-level B+ Tree structure for primary keys, enabling highly efficient $O(\log n)$ indexed lookups.
-* **Query Parser & Execution:** A custom SQL-like execution engine supporting `SELECT`, `INSERT`, `CREATE`, and `DROP` commands, alongside conditional filtering (`WHERE`, `=`, `<`, `>`, `AND`, `OR`).
-* **Metadata Management:** Maintains schema information (table names, column types, record counts) in dedicated, fast-access metadata files.
-* **Search Algorithms:** * *Indexed Search:* Ultra-fast lookups using B+ Tree traversal for primary keys.
-  * *Brute-Force Search:* Full table scans for non-indexed columns with execution time monitoring.
-
-### 🚀 Advanced Extensions (In Active Development)
-* **Buffer Pool Manager (LRU):** An in-memory caching system that minimizes disk I/O by keeping frequently accessed disk pages/blocks in RAM using a Least Recently Used (LRU) policy.
-* **Basic Join Support:** Implementation of Nested Loop Joins to support simple multi-table queries.
-* **Backend API Layer:** HTTP/TCP socket interface allowing external applications to connect and execute queries.
+</div>
 
 ---
 
-## 🏗️ System Architecture
+## What Is MiniDB?
 
-1. **Storage Manager:** Handles raw disk read/writes, fetching data in fixed-size blocks rather than line-by-line to mimic real DBMS page architecture.
-2. **Buffer Manager:** Sits between the Storage Manager and the Execution Engine, caching pages in memory.
-3. **Index Manager:** Maintains the B+ Tree structures. Each node contains a maximum of 50 entries, splitting and merging dynamically as data is inserted or deleted.
-4. **Query Processor:** Parses incoming string queries into abstract syntax trees (ASTs) and plans the execution path.
+MiniDB is a from-scratch relational database engine — not a wrapper around SQLite or MySQL, but a ground-up system that replicates how real DBMSs work internally.
 
----
-
-## 💻 Tech Stack
-
-* **Core Engine:** `C++` (Data Structures, File I/O, Memory Management)
-* **Networking (Upcoming):** C++ Sockets / Node.js HTTP Server
-* **Frontend Demo (Upcoming):** `React.js`
-* **Build System:** `Make` / `GCC`
+It runs entirely in the **terminal**. You log in, get a menu, and interact through a numbered interface or by typing SQL-like queries. Under the hood, it manages its own disk storage, in-memory buffer pool, B+ Tree index structures, and a SQL-like query parser.
 
 ---
 
-## 📝 Supported SQL Queries
+## Getting Started
 
-The system currently parses and executes the following SQL-like syntax:
+### Build
+
+```bash
+make
+```
+
+### Run
+
+```bash
+./minidb -u <username> -p
+# Enter password when prompted (default: pass)
+```
+
+### Terminal Menu
+
+Once logged in, MiniDB presents a numbered menu:
+
+```
+1. Show all tables in database
+2. Create table        ← type a CREATE TABLE query
+3. Insert into table   ← interactive prompt, column by column
+4. Drop table
+5. Display table contents  ← type a SELECT query
+6. Search  (work in progress)
+7. Print metadata of a table
+8. Help
+9. Quit
+```
+
+---
+
+## Architecture
+
+```
+  SQL Query (typed in terminal)
+           │
+           ▼
+  ┌─────────────────┐
+  │   Query Parser  │  Tokenizes input → dispatches to handler
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │ Execution Layer │  create / select / insert / drop
+  └────────┬────────┘
+           │
+      ┌────┴────┐
+      │         │
+      ▼         ▼
+  ┌───────┐  ┌──────────────┐
+  │ Index │  │ Buffer Pool  │  LRU cache — avoids redundant disk reads
+  │Manager│  │   Manager    │
+  └───┬───┘  └──────┬───────┘
+      │              │
+      └──────┬───────┘
+             │
+             ▼
+  ┌─────────────────┐
+  │ Storage Manager │  Fixed-size block I/O  (4 KB pages)
+  └─────────────────┘
+             │
+             ▼
+       table/<name>/
+       ├── data.dat     ← slotted pages holding row data
+       ├── index.dat    ← B+ Tree node pages
+       └── meta.dat     ← schema (column names, types, sizes)
+```
+
+| Layer | File | What it does |
+|---|---|---|
+| Query Parser | `parser.cpp` | Tokenizes SQL strings, routes to handler |
+| Execution Layer | `create.cpp`, `display.cpp`, `insert.cpp` | Runs DDL / DML operations |
+| Index Manager | `BPtree.cpp` | B+ Tree on primary key, persisted to `index.dat` |
+| Buffer Pool Manager | `buffer_pool_manager.cpp` | LRU page cache between execution and disk |
+| Data Page | `data_page.cpp` | Slotted-page layout inside each 4 KB block |
+| Disk Manager | `disk_manager.cpp` | Raw page read/write at byte offsets in a file |
+| Tuple Serializer | `tuple_serializer.cpp` | Packs/unpacks row values to/from raw bytes |
+
+---
+
+## Features
+
+### Storage Engine
+
+- **Block-based disk I/O** — data lives in fixed-size 4 KB pages inside `data.dat`, one file per table, matching real DBMS page architecture.
+- **Slotted page layout** — each page has a header, a slot directory growing from the front, and tuple data packed from the back. Rows are addressed by `(page_id, slot_id)` — a Record ID (RID).
+- **Tuple serialization** — rows are serialized to raw bytes on insert and deserialized back to typed values on read.
+
+### B+ Tree Index
+
+- Multi-level B+ Tree on the primary key (always the first `INT` column), persisted to `index.dat`.
+- `O(log n)` key lookup, returning the RID of the matching row.
+- Nodes hold up to 50 entries and split/merge automatically.
+- Leaf nodes are doubly linked for range scan support.
+
+### Buffer Pool Manager
+
+- In-memory LRU page cache sits between the execution layer and the disk.
+- Pages are pinned on fetch and unpinned after use; dirty pages are flushed back to disk.
+- Reduces redundant disk reads when the same page is accessed multiple times.
+
+### Query Parser
+
+- Accepts freeform SQL-like strings from the terminal.
+- `CREATE TABLE` and `SELECT` are handled via the query prompt (menu options 2 and 5).
+- `INSERT` and `DROP` use interactive prompts (menu options 3 and 4).
+
+---
+
+## Supported Operations
+
+| Operation | How to invoke | Status |
+|---|---|---|
+| `SHOW TABLES` | Menu option 1 | ✅ Working |
+| `CREATE TABLE` | Menu option 2 → type query | ✅ Working |
+| `INSERT` | Menu option 3 → interactive prompt | ✅ Working |
+| `DROP TABLE` | Menu option 4 → enter table name | ✅ Working |
+| `SELECT *` / `SELECT cols` | Menu option 5 → type query | ✅ Working |
+| View table metadata | Menu option 7 | ✅ Working |
+| Search / `WHERE` filtering | Menu option 6 | 🚧 In progress |
+
+### Query Syntax (for options 2 and 5)
 
 ```sql
--- DDL Commands
-SHOW TABLES;
-CREATE TABLE table_name (id INTEGER PRIMARY KEY, name VARCHAR);
-DROP TABLE table_name;
+-- Create
+CREATE TABLE students (id INT, name VARCHAR);
+CREATE TABLE employees (emp_id INT, email VARCHAR(100), dept VARCHAR(15));
 
--- DML Commands
-INSERT INTO table_name VALUES (1, 'John Doe');
+-- Select
+SELECT * FROM students;
+SELECT email, dept FROM employees;
+```
 
--- DQL Commands (Data Querying)
-SELECT * FROM table_name;
-SELECT id, name FROM table_name;
-SELECT * FROM table_name WHERE id = 1;
-SELECT id, name FROM table_name WHERE id > 10 AND name = 'Alice';
+> See [`SYNTAX.md`](./SYNTAX.md) for the full syntax reference.
+
+---
+
+## File Layout
+
+```
+DBMS/
+├── src/
+│   ├── main.cpp                 # Entry point, menu loop, login
+│   ├── parser.cpp               # SQL tokenizer and query router
+│   ├── create.cpp               # CREATE TABLE logic
+│   ├── insert.cpp               # INSERT (interactive prompt)
+│   ├── display.cpp              # SELECT + SHOW TABLES logic
+│   ├── BPtree.cpp               # B+ Tree index
+│   ├── disk_manager.cpp         # Page-based file I/O
+│   ├── buffer_pool_manager.cpp  # LRU buffer pool
+│   ├── data_page.cpp            # Slotted page layout
+│   ├── tuple_serializer.cpp     # Row serialization
+│   └── ...
+├── include/                     # Header files
+├── table/                       # Created at runtime — one folder per table
+│   └── <table_name>/
+│       ├── data.dat
+│       ├── index.dat
+│       └── meta.dat
+├── Makefile
+├── README.md
+└── SYNTAX.md
+```
+
+---
+
+## Tech Stack
+
+| Component | Technology |
+|---|---|
+| Core Engine | C++17 — data structures, file I/O, memory management |
+| Build System | Make / GCC |
+| Interface | Terminal (interactive menu + SQL prompt) |
+
+---
+
+## Project Goals
+
+MiniDB is a systems programming project built to understand how databases actually work. Every component — the buffer pool, the B+ Tree, the slotted page format, the tuple serializer — is implemented from scratch to mirror the internal design of production engines like PostgreSQL or InnoDB.
+
+---
+
+<div align="center">
+<sub>Built from scratch · No database dependencies · Terminal-based · C++17</sub>
+</div>
