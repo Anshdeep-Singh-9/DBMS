@@ -9,6 +9,7 @@
 #include <vector>
 #include <iostream>
 #include <cstring>
+#include <limits>
 
 // Removed local search_table definition as it is now in display.h/display.cpp
 
@@ -165,7 +166,13 @@ void insert(){
 
         if(meta.col[i].type == INT){
             int val;
-            std::cin >> val;
+            if (!(std::cin >> val)) {
+                std::cin.clear();
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                std::cout << "Error: Invalid INT value for column '"
+                          << meta.col[i].col_name << "'. Insert cancelled.\n";
+                return;
+            }
             values.push_back(TupleValue::FromInt(val));
         } else {
             std::string val;
