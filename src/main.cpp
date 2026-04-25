@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 
 using namespace std;
 
@@ -42,14 +43,21 @@ void print_small_line() {
     cout << DIM << "----------------------------------------------------------------------" << RESET << "\n";
 }
 
-void pause_screen() {
+void pause_screen(bool clearLeftoverNewline = false) {
     cout << DIM << "\nPress ENTER to continue..." << RESET;
-    cin.ignore(10000, '\n');
+
+    cin.clear();
+
+    if (clearLeftoverNewline) {
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
     cin.get();
 }
 
 void print_banner() {
     print_line();
+
     cout << BOLD << CYAN;
     cout << "  __  __ _       _ ____  ____  \n";
     cout << " |  \\/  (_)_ __ (_)  _ \\| __ ) \n";
@@ -57,14 +65,17 @@ void print_banner() {
     cout << " | |  | | | | | | | |_| | |_) |\n";
     cout << " |_|  |_|_|_| |_|_|____/|____/ \n";
     cout << RESET;
+
     cout << BOLD << WHITE << "\n        MiniDB Engine - Terminal DBMS Monitor\n" << RESET;
     cout << DIM << "        Storage Engine | B+ Tree Index | Buffer Pool | SQL Parser\n" << RESET;
+
     print_line();
 }
 
 void print_section(string title) {
     clear_screen();
     print_banner();
+
     cout << BOLD << WHITE << " " << title << RESET << "\n";
     print_small_line();
 }
@@ -99,6 +110,7 @@ int take_input_option() {
     string option;
 
     print_line();
+
     cout << BOLD << WHITE << " MAIN MENU\n" << RESET;
     print_small_line();
 
@@ -113,8 +125,8 @@ int take_input_option() {
     cout << CYAN << " 9 " << RESET << "Quit\n";
 
     print_line();
-    cout << BOLD << "Enter choice [1-9]: " << RESET;
 
+    cout << BOLD << "Enter choice [1-9]: " << RESET;
     cin >> option;
 
     if (option.length() != 1 || option[0] < '1' || option[0] > '9') {
@@ -131,8 +143,7 @@ void input() {
 
         if (c == -1) {
             cin.clear();
-            cin.ignore(10000, '\n');
-            pause_screen();
+            pause_screen(true);
             clear_screen();
             print_banner();
             continue;
@@ -142,7 +153,7 @@ void input() {
             case 1:
                 print_section("Tables in Database");
                 show_tables();
-                pause_screen();
+                pause_screen(true);
                 break;
 
             case 2:
@@ -150,19 +161,19 @@ void input() {
                 cout << YELLOW << "Enter CREATE TABLE query.\n" << RESET;
                 cout << DIM << "Example: CREATE TABLE students (id INT, name VARCHAR(50));\n\n" << RESET;
                 get_query();
-                pause_screen();
+                pause_screen(false);
                 break;
 
             case 3:
                 print_section("Insert Into Table");
                 insert();
-                pause_screen();
+                pause_screen(true);
                 break;
 
             case 4:
                 print_section("Drop Table");
                 drop();
-                pause_screen();
+                pause_screen(true);
                 break;
 
             case 5:
@@ -170,24 +181,24 @@ void input() {
                 cout << YELLOW << "Enter SELECT query.\n" << RESET;
                 cout << DIM << "Example: SELECT * FROM students;\n\n" << RESET;
                 get_query();
-                pause_screen();
+                pause_screen(false);
                 break;
 
             case 6:
                 print_section("Search");
                 cout << YELLOW << "Work in progress\n" << RESET;
-                pause_screen();
+                pause_screen(true);
                 break;
 
             case 7:
                 print_section("Table Metadata");
                 display_meta_data();
-                pause_screen();
+                pause_screen(true);
                 break;
 
             case 8:
                 help();
-                pause_screen();
+                pause_screen(true);
                 break;
 
             case 9:
@@ -198,7 +209,7 @@ void input() {
 
             default:
                 cout << RED << "\nPlease choose a correct option.\n" << RESET;
-                pause_screen();
+                pause_screen(true);
                 break;
         }
 
@@ -207,14 +218,8 @@ void input() {
     }
 }
 
-
 void system_check() {
     try {
-        // Program runs from build/bin/miniDB
-        // exe_path = .../miniDB/build/bin/miniDB
-        // parent1 = .../miniDB/build/bin
-        // parent2 = .../miniDB/build
-        // parent3 = .../miniDB (root)
         fs::path exe_path = fs::canonical("/proc/self/exe");
         fs::path root_dir = exe_path.parent_path().parent_path().parent_path();
         fs::path table_dir = root_dir / "table";
@@ -229,10 +234,10 @@ void system_check() {
             file.close();
         }
     } catch (...) {
-        // Fallback for non-linux or if canonical fails
         if (!fs::exists("table")) {
             fs::create_directories("table");
         }
+
         if (!fs::exists("table/table_list")) {
             ofstream file("table/table_list");
             file.close();
@@ -242,10 +247,13 @@ void system_check() {
 
 void start_system() {
     system_check();
+
     clear_screen();
     print_banner();
+
     cout << GREEN << "Welcome to MiniDB Monitor.\n" << RESET;
     cout << DIM << "Use the numbered menu to perform DBMS operations.\n\n" << RESET;
+
     input();
 }
 
@@ -253,6 +261,7 @@ string get_password() {
     struct termios termios_p;
 
     tcgetattr(STDIN_FILENO, &termios_p);
+
     termios_p.c_lflag &= ~ECHO;
     tcsetattr(STDIN_FILENO, TCSANOW, &termios_p);
 
@@ -265,6 +274,7 @@ string get_password() {
     tcsetattr(STDIN_FILENO, TCSANOW, &termios_p);
 
     cout << "\n";
+
     return pass;
 }
 
@@ -282,7 +292,6 @@ int main(int argc, char *argv[]) {
 
             if (password == mypass) {
                 cout << GREEN << "Correct password!\n" << RESET;
-                pause_screen();
             } else {
                 cout << RED << "Incorrect password!\n" << RESET;
                 return 0;
@@ -299,5 +308,6 @@ int main(int argc, char *argv[]) {
     }
 
     start_system();
+
     return 0;
 }
