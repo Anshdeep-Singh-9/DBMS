@@ -5,6 +5,8 @@
 #include "data_page.h"
 #include "disk_manager.h"
 #include "tuple_serializer.h"
+#include "create.h"
+#include "insert.h"
 #include <vector>
 #include <string>
 
@@ -77,6 +79,117 @@ int main() {
     ([](std::string table_name) {
         auto result = table_to_json(table_name);
         return result;
+    });
+
+    // Route to get metadata of a table
+    CROW_ROUTE(app, "/meta/<string>")
+    ([](std::string table_name) {
+        struct table* meta = fetch_meta_data(table_name);
+        if (!meta) {
+            return crow::response(404, "Table not found");
+        }
+
+        crow::json::wvalue result;
+        result["table_name"] = meta->name;
+        result["column_count"] = meta->count;
+        result["record_size"] = meta->size;
+
+        std::vector<crow::json::wvalue> columns;
+        for (int i = 0; i < meta->count; i++) {
+            crow::json::wvalue col;
+            col["name"] = meta->col[i].col_name;
+            col["type"] = (meta->col[i].type == INT ? "INT" : "VARCHAR");
+            col["size"] = meta->col[i].size;
+            columns.push_back(std::move(col));
+        }
+        result["columns"] = std::move(columns);
+
+        delete meta;
+        return crow::response(result);
+    });
+
+    // Route to list all tables
+    CROW_ROUTE(app, "/tables")
+    ([]() {
+        std::vector<std::string> tables;
+        std::ifstream fp("./table/table_list");
+        std::string name;
+        if (fp.is_open()) {
+            while (fp >> name) {
+                tables.push_back(name);
+            }
+            fp.close();
+        }
+        
+        crow::json::wvalue result;
+        result["tables"] = tables;
+        return crow::response(result);
+    });
+
+    // Route to create a table
+    CROW_ROUTE(app, "/create").methods(crow::HTTPMethod::POST)
+    ([](const crow::request& req) {
+        auto x = crow::json::load(req.body);
+        if (!x || !x.has("table_name") || !x.has("columns")) {
+            return crow::response(400, "Invalid JSON");
+        }
+
+        std::string table_name = x["table_name"].s();
+        std::vector<std::pair<std::string, std::string>> columns;
+        
+        for (auto& col : x["columns"]) {
+            if (!col.has("name") || !col.has("type")) {
+                return crow::response(400, "Invalid column definition");
+            }
+            columns.push_back({col["name"].s(), col["type"].s()});
+        }
+
+        execute_create_query(table_name, columns);
+        return crow::response(201, "Table created (check logs for success/failure)");
+    });
+
+    // Route to insert data into a table
+    CROW_ROUTE(app, "/insert/<string>").methods(crow::HTTPMethod::POST)
+    ([](const crow::request& req, std::string table_name) {
+        auto x = crow::json::load(req.body);
+        if (!x) {
+            return crow::response(400, "Invalid JSON");
+        }
+
+        struct table* meta = fetch_meta_data(table_name);
+        if (!meta) {
+            return crow::response(404, "Table not found");
+        }
+
+        std::vector<ColumnSchema> schema;
+        std::vector<TupleValue> values;
+
+        for (int i = 0; i < meta->count; i++) {
+            std::string col_name = meta->col[i].col_name;
+            ColumnSchema col_schema(col_name,
+                                    meta->col[i].type == INT ? STORAGE_COLUMN_INT
+                                                             : STORAGE_COLUMN_VARCHAR,
+                                    meta->col[i].size);
+            schema.push_back(col_schema);
+
+            if (!x.has(col_name)) {
+                delete meta;
+                return crow::response(400, "Missing column: " + col_name);
+            }
+
+            if (meta->col[i].type == INT) {
+                values.push_back(TupleValue::FromInt(x[col_name].i()));
+            } else {
+                values.push_back(TupleValue::FromVarchar(x[col_name].s()));
+            }
+        }
+
+        char tname[MAX_NAME];
+        strcpy(tname, table_name.c_str());
+        insert_command(tname, values, schema);
+
+        delete meta;
+        return crow::response(200, "Insertion triggered (check logs for success/failure)");
     });
 
     // Health check route
