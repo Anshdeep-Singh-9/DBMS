@@ -1,10 +1,5 @@
 #include "declaration.h"
-#include "BPtree.h"
-#include "create.h"
-#include "insert.h"
 #include "display.h"
-#include "search.h"
-#include "drop.h"
 #include "parser.h"
 #include "file_handler.h"
 
@@ -15,8 +10,6 @@
 #include <string>
 #include <termios.h>
 #include <unistd.h>
-#include <filesystem>
-#include <fstream>
 #include <limits>
 #include <cctype>
 
@@ -24,8 +17,6 @@ using namespace std;
 
 void system_check();
 void execute_query_string(string input_query);
-
-namespace fs = std::filesystem;
 
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
@@ -101,20 +92,23 @@ void help() {
     print_small_line();
 
     cout << GREEN << "SHOW TABLES;\n" << RESET;
-    cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n" << RESET;
-    cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n" << RESET;
-    cout << GREEN << "SELECT * FROM students;\n" << RESET;
-    cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
-    cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
-    cout << GREEN << "DROP TABLE students;\n" << RESET;
+    cout << GREEN << "CREATE TABLE Students (ID INT, Name VARCHAR(50), Dept VARCHAR(20));\n" << RESET;
+    cout << GREEN << "INSERT INTO Students VALUES (1, Anshdeep Singh, CSE);\n" << RESET;
+    cout << GREEN << "INSERT INTO Students VALUES (2, \"Aditya Sirsalkar\", \"CSE\");\n" << RESET;
+    cout << GREEN << "SELECT * FROM Students;\n" << RESET;
+    cout << GREEN << "SELECT Name, Dept FROM Students;\n" << RESET;
+    cout << GREEN << "SELECT * FROM Students WHERE ID = 1;\n" << RESET;
+    cout << GREEN << "DROP TABLE Students;\n" << RESET;
 
     cout << "\n" << BOLD << "Notes\n" << RESET;
     print_small_line();
-    cout << "- Keywords are case-insensitive.\n";
+    cout << "- SQL keywords are case-insensitive.\n";
+    cout << "- Table names and column names are case-sensitive.\n";
+    cout << "- VARCHAR values keep the original case exactly as typed.\n";
+    cout << "- Quotes are optional for VARCHAR values, but recommended for clarity.\n";
     cout << "- First column must be INT because it is used as primary key.\n";
     cout << "- INSERT values must follow the same order as table columns.\n";
-    cout << "- VARCHAR values should be written inside quotes.\n";
-    cout << "- DROP TABLE is available only through Query Console now.\n";
+    cout << "- DROP TABLE is available through Query Console.\n";
     cout << "- Type BACK or EXIT inside Query Console to return to the main menu.\n";
 
     print_small_line();
@@ -172,12 +166,12 @@ void print_query_console_syntax() {
     print_small_line();
 
     cout << GREEN << "SHOW TABLES;\n" << RESET;
-    cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n" << RESET;
-    cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n" << RESET;
-    cout << GREEN << "SELECT * FROM students;\n" << RESET;
-    cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
-    cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
-    cout << GREEN << "DROP TABLE students;\n" << RESET;
+    cout << GREEN << "CREATE TABLE Students (ID INT, Name VARCHAR(50), Dept VARCHAR(20));\n" << RESET;
+    cout << GREEN << "INSERT INTO Students VALUES (1, Anshdeep Singh, CSE);\n" << RESET;
+    cout << GREEN << "SELECT * FROM Students;\n" << RESET;
+    cout << GREEN << "SELECT Name, Dept FROM Students;\n" << RESET;
+    cout << GREEN << "SELECT * FROM Students WHERE ID = 1;\n" << RESET;
+    cout << GREEN << "DROP TABLE Students;\n" << RESET;
 
     print_small_line();
 }

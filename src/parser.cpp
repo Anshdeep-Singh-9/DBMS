@@ -6,12 +6,9 @@
 
 #include <cstring>
 #include <iostream>
-#include <algorithm>
 #include <sstream>
 #include <cctype>
 #include <vector>
-#include <cstdlib>
-#include <limits>
 #include <fstream>
 #include <filesystem>
 
@@ -22,23 +19,39 @@ extern void execute_create_query(string table_name, vector<pair<string, string>>
 extern void insert_command(char tname[], const vector<TupleValue>& values, const vector<ColumnSchema>& schema);
 
 string trim_string(string s) {
-    while (!s.empty() && isspace((unsigned char)s.front())) s.erase(s.begin());
-    while (!s.empty() && isspace((unsigned char)s.back())) s.pop_back();
+    while (!s.empty() && isspace((unsigned char)s.front())) {
+        s.erase(s.begin());
+    }
+
+    while (!s.empty() && isspace((unsigned char)s.back())) {
+        s.pop_back();
+    }
+
+    return s;
+}
+
+string to_lower_string(string s) {
+    for (char &c : s) {
+        c = static_cast<char>(tolower((unsigned char)c));
+    }
+
     return s;
 }
 
 string remove_quotes(string s) {
     s = trim_string(s);
+
     if (s.size() >= 2) {
         if ((s.front() == '\'' && s.back() == '\'') ||
             (s.front() == '"' && s.back() == '"')) {
             return s.substr(1, s.size() - 2);
         }
     }
+
     return s;
 }
 
-string to_lower_query(string q) {
+string keyword_lower_copy(string q) {
     bool in_single = false;
     bool in_double = false;
 
@@ -88,23 +101,41 @@ vector<string> split_values(string s) {
     return values;
 }
 
+void push_select_token(vector<string>& token_vector, string token) {
+    token = trim_string(token);
+    if (token.empty()) return;
+
+    string lower = to_lower_string(token);
+
+    if (lower == "select" || lower == "from" || lower == "where") {
+        token_vector.push_back(lower);
+    }
+    else {
+        token_vector.push_back(remove_quotes(token));
+    }
+}
+
 void tokenize_select(char query[]) {
     vector<string> token_vector;
     string current_token = "";
-    bool in_quotes = false;
+    bool in_single = false;
+    bool in_double = false;
 
     for (int i = 0; query[i] != '\0'; i++) {
         char c = query[i];
 
-        if (c == '"') {
-            in_quotes = !in_quotes;
+        if (c == '\'' && !in_double) {
+            in_single = !in_single;
             current_token += c;
         }
-        else if (!in_quotes && (c == ' ' || c == ',' || c == ';' || c == '\n')) {
-            if (!current_token.empty()) {
-                token_vector.push_back(current_token);
-                current_token = "";
-            }
+        else if (c == '"' && !in_single) {
+            in_double = !in_double;
+            current_token += c;
+        }
+        else if (!in_single && !in_double &&
+                 (c == ' ' || c == ',' || c == ';' || c == '\n')) {
+            push_select_token(token_vector, current_token);
+            current_token = "";
         }
         else {
             if (c != '\n') {
@@ -113,31 +144,41 @@ void tokenize_select(char query[]) {
         }
     }
 
-    if (!current_token.empty()) {
-        token_vector.push_back(current_token);
-    }
+    push_select_token(token_vector, current_token);
 
     process_select(token_vector);
 }
 
 void tokenize_create(char query[]) {
     string q(query);
+    string q_lower = keyword_lower_copy(q);
 
     size_t start = q.find('(');
     size_t end = q.rfind(')');
 
-    if (start == string::npos || end == string::npos) {
+    if (start == string::npos || end == string::npos || end <= start) {
         cout << "Syntax Error: Invalid CREATE TABLE format. Missing parentheses.\n";
         return;
     }
 
-    string before_paren = q.substr(0, start);
+    string before_paren = trim_string(q.substr(0, start));
     stringstream ss(before_paren);
-    string word, table_name;
+
+    vector<string> words;
+    string word;
 
     while (ss >> word) {
-        table_name = word;
+        words.push_back(word);
     }
+
+    if (words.size() != 3 ||
+        to_lower_string(words[0]) != "create" ||
+        to_lower_string(words[1]) != "table") {
+        cout << "Syntax Error: Use CREATE TABLE table_name (...);\n";
+        return;
+    }
+
+    string table_name = words[2];
 
     string cols_str = q.substr(start + 1, end - start - 1);
     vector<pair<string, string>> columns;
@@ -146,7 +187,7 @@ void tokenize_create(char query[]) {
     string col_def;
 
     while (getline(col_stream, col_def, ',')) {
-        stringstream def_stream(col_def);
+        stringstream def_stream(trim_string(col_def));
         string col_name, col_type;
 
         if (def_stream >> col_name >> col_type) {
@@ -159,8 +200,9 @@ void tokenize_create(char query[]) {
 
 void tokenize_insert(char query[]) {
     string q(query);
+    string q_lower = keyword_lower_copy(q);
 
-    size_t values_pos = q.find(" values ");
+    size_t values_pos = q_lower.find(" values ");
     if (values_pos == string::npos) {
         cout << "Syntax Error: Invalid INSERT statement. Missing VALUES keyword.\n";
         return;
@@ -172,7 +214,9 @@ void tokenize_insert(char query[]) {
     string insert_word, into_word, table_name;
     ss >> insert_word >> into_word >> table_name;
 
-    if (insert_word != "insert" || into_word != "into" || table_name.empty()) {
+    if (to_lower_string(insert_word) != "insert" ||
+        to_lower_string(into_word) != "into" ||
+        table_name.empty()) {
         cout << "Syntax Error: Use INSERT INTO table_name VALUES (...);\n";
         return;
     }
@@ -262,8 +306,9 @@ void tokenize_show(char query[]) {
     }
 
     q = trim_string(q);
+    string q_lower = to_lower_string(q);
 
-    if (q == "show tables") {
+    if (q_lower == "show tables") {
         show_tables();
     } else {
         cout << "Syntax Error: Supported SHOW syntax is:\n";
@@ -284,7 +329,10 @@ void tokenize_drop(char query[]) {
     string drop_word, table_word, table_name, extra;
     ss >> drop_word >> table_word >> table_name >> extra;
 
-    if (drop_word != "drop" || table_word != "table" || table_name.empty() || !extra.empty()) {
+    if (to_lower_string(drop_word) != "drop" ||
+        to_lower_string(table_word) != "table" ||
+        table_name.empty() ||
+        !extra.empty()) {
         cout << "Syntax Error: Use DROP TABLE table_name;\n";
         return;
     }
@@ -299,6 +347,7 @@ void tokenize_drop(char query[]) {
     }
 
     string table_path = "./table/" + table_name;
+
     try {
         if (fs::exists(table_path)) {
             fs::remove_all(table_path);
@@ -332,18 +381,6 @@ void tokenize_drop(char query[]) {
     cout << "Success: Table '" << table_name << "' dropped successfully.\n";
 }
 
-void print_query_syntax_help() {
-    cout << "\nSupported Query Syntax\n";
-    cout << "--------------------------------------------------\n";
-    cout << "SHOW TABLES;\n";
-    cout << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n";
-    cout << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n";
-    cout << "SELECT * FROM students;\n";
-    cout << "SELECT name, dept FROM students;\n";
-    cout << "SELECT * FROM students WHERE id = 1;\n";
-    cout << "DROP TABLE students;\n";
-    cout << "--------------------------------------------------\n\n";
-}
 void execute_query_string(string input_query) {
     input_query = trim_string(input_query);
 
@@ -352,70 +389,32 @@ void execute_query_string(string input_query) {
         return;
     }
 
-    string lowered_query = to_lower_query(input_query);
+    stringstream ss(input_query);
+    string first_word;
+    ss >> first_word;
 
-    char buffer[1024];
-    strncpy(buffer, lowered_query.c_str(), sizeof(buffer) - 1);
-    buffer[sizeof(buffer) - 1] = '\0';
+    string token_temp = to_lower_string(first_word);
 
-    char *token = strtok(buffer, " \n");
+    char final_query[1024];
+    strncpy(final_query, input_query.c_str(), sizeof(final_query) - 1);
+    final_query[sizeof(final_query) - 1] = '\0';
 
-    if (token) {
-        string token_temp(token);
-
-        char final_query[1024];
-        strncpy(final_query, lowered_query.c_str(), sizeof(final_query) - 1);
-        final_query[sizeof(final_query) - 1] = '\0';
-
-        if (token_temp == "select") {
-            tokenize_select(final_query);
-        }
-        else if (token_temp == "create") {
-            tokenize_create(final_query);
-        }
-        else if (token_temp == "insert") {
-            tokenize_insert(final_query);
-        }
-        else if (token_temp == "show") {
-            tokenize_show(final_query);
-        }
-        else if (token_temp == "drop") {
-            tokenize_drop(final_query);
-        }
-        else {
-            cout << "\nError: Wrong syntax or unsupported command.\n";
-            print_query_syntax_help();
-        }
+    if (token_temp == "select") {
+        tokenize_select(final_query);
     }
-}
-
-void get_query() {
-    string input_query;
-
-    cout << "Enter Query:\n";
-
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    getline(cin, input_query);
-
-    execute_query_string(input_query);
-}
-
-void parse_create() {
-    string s;
-
-    cout << "enter create query\n";
-
-    cin.ignore();
-    getline(cin, s);
-
-    s = to_lower_query(s);
-
-    int openpos = s.find("(");
-    int closepos = s.find(")");
-
-    string token = s.substr(0, openpos);
-    string tbetween = s.substr(openpos + 1, s.length() - openpos - 2);
-
-    cout << token << endl;
-    cout << tbetween << endl;
+    else if (token_temp == "create") {
+        tokenize_create(final_query);
+    }
+    else if (token_temp == "insert") {
+        tokenize_insert(final_query);
+    }
+    else if (token_temp == "show") {
+        tokenize_show(final_query);
+    }
+    else if (token_temp == "drop") {
+        tokenize_drop(final_query);
+    }
+    else {
+        cout << "\nError: Wrong syntax or unsupported command.\n";
+    }
 }
