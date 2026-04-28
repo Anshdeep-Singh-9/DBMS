@@ -47,7 +47,7 @@ async function runTests() {
         console.log(`Status: ${tables.statusCode}, Tables:`, tables.body ? tables.body.tables : 'error', '\n');
 
         // 3. Create Table
-        const testTableName = 'api_test_table';
+        const testTableName = 'api';
         console.log(`Testing /create for table: ${testTableName}...`);
         const createData = {
             table_name: testTableName,
