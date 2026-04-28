@@ -67,7 +67,8 @@ BufferPoolManager::BufferPoolManager(std::size_t pool_size,
       disk_manager_(disk_manager),
       frames_(),
       page_table_(),
-      lru_list_() {
+      lru_list_(),
+      stats_() {
     frames_.reserve(pool_size_);
     for (std::size_t i = 0; i < pool_size_; ++i) {
         frames_.push_back(BufferFrame(static_cast<uint32_t>(i)));
@@ -94,6 +95,7 @@ char* BufferPoolManager::fetch_page(uint32_t page_id) {
     if (hit != page_table_.end()) {
         BufferFrame& frame = frames_[hit->second];
         frame.pin_count++;
+        stats_.cache_hits++;
         touch_lru(frame.frame_id);
         return &frame.page_data[0];
     }
@@ -103,6 +105,7 @@ char* BufferPoolManager::fetch_page(uint32_t page_id) {
      * We need one frame to hold the requested page. Prefer a free frame first.
      * If none is free, choose an unpinned victim using LRU.
      */
+    stats_.cache_misses++;
     uint32_t frame_id = has_free_frame() ? find_free_frame() : pick_victim_frame();
     if (frame_id == INVALID_FRAME_ID) {
         return NULL;
@@ -177,6 +180,10 @@ bool BufferPoolManager::unpin_page(uint32_t page_id, bool is_dirty) {
      * full. We still keep it in RAM for fast reuse.
      */
     touch_lru(frame.frame_id);
+
+    if (should_run_background_flush()) {
+        checkpoint(1);
+    }
     return true;
 }
 
@@ -204,6 +211,57 @@ std::size_t BufferPoolManager::pool_size() const {
 
 std::size_t BufferPoolManager::cached_page_count() const {
     return page_table_.size();
+}
+
+std::size_t BufferPoolManager::pinned_page_count() const {
+    std::size_t count = 0;
+    for (std::size_t i = 0; i < frames_.size(); ++i) {
+        if (frames_[i].is_valid && frames_[i].pin_count > 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+std::size_t BufferPoolManager::dirty_page_count() const {
+    std::size_t count = 0;
+    for (std::size_t i = 0; i < frames_.size(); ++i) {
+        if (frames_[i].is_valid && frames_[i].is_dirty) {
+            count++;
+        }
+    }
+    return count;
+}
+
+const BufferPoolStats& BufferPoolManager::stats() const {
+    return stats_;
+}
+
+std::size_t BufferPoolManager::checkpoint(std::size_t max_pages) {
+    std::size_t flushed = 0;
+    for (std::list<uint32_t>::iterator it = lru_list_.begin();
+         it != lru_list_.end();
+         ++it) {
+        BufferFrame& frame = frames_[*it];
+        if (!frame.is_valid || frame.pin_count > 0 || !frame.is_dirty) {
+            continue;
+        }
+
+        if (!flush_frame(frame)) {
+            continue;
+        }
+
+        flushed++;
+        if (max_pages != 0 && flushed >= max_pages) {
+            break;
+        }
+    }
+
+    if (flushed > 0) {
+        stats_.checkpoints++;
+    }
+
+    return flushed;
 }
 
 bool BufferPoolManager::has_free_frame() const {
@@ -235,6 +293,13 @@ uint32_t BufferPoolManager::pick_victim_frame() {
          ++it) {
         BufferFrame& candidate = frames_[*it];
         if (candidate.pin_count == 0) {
+            if (candidate.is_valid) {
+                if (candidate.is_dirty) {
+                    stats_.dirty_evictions++;
+                } else {
+                    stats_.clean_evictions++;
+                }
+            }
             if (!flush_frame(candidate)) {
                 return INVALID_FRAME_ID;
             }
@@ -301,5 +366,25 @@ bool BufferPoolManager::flush_frame(BufferFrame& frame) {
     }
 
     frame.is_dirty = false;
+    stats_.dirty_flushes++;
     return true;
+}
+
+bool BufferPoolManager::should_run_background_flush() const {
+    if (pool_size_ == 0) {
+        return false;
+    }
+
+    /*
+     * What:
+     * Trigger a small checkpoint when too many dirty pages accumulate.
+     *
+     * Why:
+     * A more complete buffer pool should not let all dirty pages pile up until
+     * the very end. This keeps eviction and shutdown pressure lower.
+     *
+     * Understanding:
+     * - if more than half the pool is dirty, start flushing old unpinned pages
+     */
+    return dirty_page_count() > (pool_size_ / 2);
 }

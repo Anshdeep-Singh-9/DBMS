@@ -3,6 +3,7 @@
 #include "file_handler.h"
 #include "insert.h"
 #include "tuple_serializer.h"
+#include "update.h"
 
 #include <cstring>
 #include <iostream>
@@ -381,6 +382,87 @@ void tokenize_drop(char query[]) {
     cout << "Success: Table '" << table_name << "' dropped successfully.\n";
 }
 
+void tokenize_update(char query[]) {
+    string q(query);
+
+    while (!q.empty() && (q.back() == ';' || q.back() == '\n' || q.back() == ' ')) {
+        q.pop_back();
+    }
+
+    string q_lower = keyword_lower_copy(q);
+    size_t set_pos = q_lower.find(" set ");
+    size_t where_pos = q_lower.find(" where ");
+
+    if (set_pos == string::npos) {
+        cout << "Syntax Error: Missing SET keyword.\n";
+        return;
+    }
+    if (where_pos == string::npos || where_pos <= set_pos) {
+        cout << "Syntax Error: Missing WHERE keyword.\n";
+        return;
+    }
+
+    string before_set = trim_string(q.substr(0, set_pos));
+    stringstream ss_tbl(before_set);
+    string update_kw, table_name;
+    ss_tbl >> update_kw >> table_name;
+    if (to_lower_string(update_kw) != "update" || table_name.empty()) {
+        cout << "Syntax Error: Use UPDATE table SET col = val WHERE ...\n";
+        return;
+    }
+
+    string set_clause = trim_string(q.substr(set_pos + 5, where_pos - set_pos - 5));
+    size_t eq_pos = set_clause.find('=');
+    if (eq_pos == string::npos) {
+        cout << "Syntax Error: SET clause must be col = value.\n";
+        return;
+    }
+
+    string set_col = trim_string(set_clause.substr(0, eq_pos));
+    string set_val = remove_quotes(trim_string(set_clause.substr(eq_pos + 1)));
+    if (set_col.empty() || set_val.empty()) {
+        cout << "Syntax Error: SET column or value is empty.\n";
+        return;
+    }
+
+    string where_clause = trim_string(q.substr(where_pos + 7));
+    size_t where_eq = where_clause.find('=');
+    if (where_eq == string::npos) {
+        cout << "Syntax Error: WHERE clause must be col = value.\n";
+        return;
+    }
+
+    string where_col = trim_string(where_clause.substr(0, where_eq));
+    string where_val = remove_quotes(trim_string(where_clause.substr(where_eq + 1)));
+    if (where_col.empty() || where_val.empty()) {
+        cout << "Syntax Error: WHERE column or value is empty.\n";
+        return;
+    }
+
+    UpdateStatement stmt;
+    stmt.table_name = table_name;
+    stmt.set_column = set_col;
+    stmt.set_value = set_val;
+    stmt.where_column = where_col;
+    stmt.where_value = where_val;
+
+    execute_update(stmt);
+}
+
+void print_query_syntax_help() {
+    cout << "\nSupported Query Syntax\n";
+    cout << "--------------------------------------------------\n";
+    cout << "SHOW TABLES;\n";
+    cout << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n";
+    cout << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n";
+    cout << "SELECT * FROM students;\n";
+    cout << "SELECT name, dept FROM students;\n";
+    cout << "SELECT * FROM students WHERE id = 1;\n";
+    cout << "UPDATE students SET dept = ECE WHERE id = 1;\n";
+    cout << "DROP TABLE students;\n";
+    cout << "--------------------------------------------------\n\n";
+}
+
 void execute_query_string(string input_query) {
     input_query = trim_string(input_query);
 
@@ -414,7 +496,11 @@ void execute_query_string(string input_query) {
     else if (token_temp == "drop") {
         tokenize_drop(final_query);
     }
+    else if (token_temp == "update") {
+        tokenize_update(final_query);
+    }
     else {
         cout << "\nError: Wrong syntax or unsupported command.\n";
+        print_query_syntax_help();
     }
 }

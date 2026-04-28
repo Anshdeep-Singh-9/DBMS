@@ -4,6 +4,7 @@
 #include "buffer_pool_manager.h"
 #include "disk_manager.h"
 #include "data_page.h"
+#include "recovery_manager.h"
 #include "tuple_serializer.h"
 #include <string>
 #include <vector>
@@ -29,22 +30,24 @@
  * 2. Serialize tuple to bytes
  * 3. Ask buffer pool for candidate pages
  * 4. If a page has space, modify that page in RAM
- * 5. Mark the frame dirty and unpin it
- * 6. Buffer pool flushes dirty pages back to disk later
- * 7. Store key -> RID in the B+ Tree
+ * 5. Write a redo record into the recovery log
+ * 6. Mark the frame dirty and unpin it
+ * 7. Buffer pool flushes dirty pages back to disk later
+ * 8. Store key -> RID in the B+ Tree
  *
  * Concept used:
  * - page-based storage
  * - slotted pages
  * - RID based row addressing
  * - buffer pool caching
+ * - write-ahead logging
  * - dirty page tracking
  * - pin / unpin discipline
  *
  * Layman version:
  * - before, insert directly touched the disk page file
- * - now, insert first works on a RAM copy of the page and then the buffer
- *   pool decides when that page goes back to disk
+ * - now, insert first works on a RAM copy of the page, logs the final page
+ *   image for crash recovery, and then lets the buffer pool send it to disk
  */
 void insert_command(char tname[], const std::vector<TupleValue>& values, const std::vector<ColumnSchema>& schema) {
     // 1. Prepare the Index
@@ -121,6 +124,14 @@ void insert_command(char tname[], const std::vector<TupleValue>& values, const s
         return;
     }
 
+    RecoveryTicket recovery_ticket =
+        RecoveryManager::log_insert_redo(tname, target_page_id, slot_id, pk_value, page.data());
+    if (!recovery_ticket.valid) {
+        std::cout << "Error: Failed to write recovery log." << std::endl;
+        buffer_pool.unpin_page(target_page_id, false);
+        return;
+    }
+
     std::memcpy(target_buffer, page.data(), STORAGE_PAGE_SIZE);
     buffer_pool.unpin_page(target_page_id, true);
     buffer_pool.flush_page(target_page_id);
@@ -128,6 +139,7 @@ void insert_command(char tname[], const std::vector<TupleValue>& values, const s
     // 6. Update the B+ Tree Index with the new RID
     RID rid(target_page_id, slot_id);
     index.insert(pk_value, rid);
+    RecoveryManager::mark_insert_applied(recovery_ticket);
 
     std::cout << "Successfully inserted row into " << tname << " at RID(" 
               << target_page_id << ", " << slot_id << ")" << std::endl;
