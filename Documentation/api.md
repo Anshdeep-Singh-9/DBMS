@@ -56,6 +56,15 @@ Retrieve all records from a specific table in JSON format.
 - **Success Response**: A JSON array of objects, where each object represents a row.
 - **Error Response**: `{"error": "Table not found"}` or `{"error": "Could not open data file"}`
 
+### 3. Bulk Insert Data
+Insert multiple records into a specific table at once.
+
+- **URL**: `/bulk_insert/<table_name>`
+- **Method**: `POST`
+- **Body**: A JSON array of objects, where each object represents a row to be inserted.
+- **Success Response**: `Bulk insertion triggered (check logs for success/failure)`
+- **Error Response**: `Invalid JSON or empty array` or `Table not found`
+
 ---
 
 ## 💻 Example Usage

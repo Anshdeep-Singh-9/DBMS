@@ -47,7 +47,7 @@ async function runTests() {
         console.log(`Status: ${tables.statusCode}, Tables:`, tables.body ? tables.body.tables : 'error', '\n');
 
         // 3. Create Table
-        const testTableName = 'api_test_table';
+        const testTableName = 'api';
         console.log(`Testing /create for table: ${testTableName}...`);
         const createData = {
             table_name: testTableName,
@@ -76,10 +76,28 @@ async function runTests() {
             name: 'API Tester',
             age: 25
         };
+
+        const insert_into_user = {
+            Roll_No: 6,
+            Name: "Udaynoor Singh"
+        };
+        const user_insert = await request('POST', '/insert/users', insert_into_user);
+        console.log(`Status: ${user_insert.statusCode}, Response: ${user_insert.rawBody}\n`);
+
         const insertRes = await request('POST', `/insert/${testTableName}`, insertData);
         console.log(`Status: ${insertRes.statusCode}, Response: ${insertRes.rawBody}\n`);
 
-        // 6. Fetch Table Data
+        // 6. Bulk Insert Data
+        console.log(`Testing /bulk_insert/${testTableName}...`);
+        const bulkInsertData = [
+            { id: 102, name: 'Bulk User 1', age: 30 },
+            { id: 103, name: 'Bulk User 2', age: 35 },
+            { id: 104, name: 'Bulk User 3', age: 40 }
+        ];
+        const bulkInsertRes = await request('POST', `/bulk_insert/${testTableName}`, bulkInsertData);
+        console.log(`Status: ${bulkInsertRes.statusCode}, Response: ${bulkInsertRes.rawBody}\n`);
+
+        // 7. Fetch Table Data
         console.log(`Testing /table/${testTableName}...`);
         const dataRes = await request('GET', `/table/${testTableName}`);
         console.log(`Status: ${dataRes.statusCode}`);
