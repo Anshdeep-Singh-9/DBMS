@@ -17,6 +17,12 @@ extern int store_meta_data(struct table *t_ptr);
 extern struct table* fetch_meta_data(string name);
 extern void system_check();
 
+// --- SYSTEM FILE OPERATIONS ---
+extern FilePtr open_system_file(const char* t_name, const char* perm);
+extern FilePtr open_system_file_read(const char* t_name, const char* perm);
+extern struct table* fetch_system_meta_data(string name);
+extern int store_system_meta_data(struct table *t_ptr);
+
 const std::ios::openmode READ_BIN   = std::ios::in | std::ios::binary;
 const std::ios::openmode WRITE_BIN  = std::ios::out | std::ios::trunc | std::ios::binary;
 const std::ios::openmode RW_BIN     = std::ios::in | std::ios::out | std::ios::binary;

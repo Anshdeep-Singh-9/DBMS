@@ -8,6 +8,7 @@
 #include "create.h"
 #include "insert.h"
 #include "recovery_manager.h"
+#include "auth.h"
 #include <vector>
 #include <string>
 
@@ -72,21 +73,63 @@ crow::json::wvalue table_to_json(const std::string& table_name) {
 }
 
 int main() {
+    AuthManager::init();
     system_check();
-    RecoveryManager::recover_all_tables();
     crow::SimpleApp app;
 
-    // Route to get all entries in a table
-    CROW_ROUTE(app, "/table/<string>")
-    ([](std::string table_name) {
-        auto result = table_to_json(table_name);
-        return result;
-    });
+        // Helper to check authentication
+        auto is_authenticated = [](const crow::request& req) {
+            auto token = req.get_header_value("X-Session-Token");
+            return AuthManager::validate_session(token);
+        };
 
-    // Route to get metadata of a table
-    CROW_ROUTE(app, "/meta/<string>")
-    ([](std::string table_name) {
-        struct table* meta = fetch_meta_data(table_name);
+        // Route to login and get a session token
+        CROW_ROUTE(app, "/login").methods(crow::HTTPMethod::POST)
+        ([](const crow::request& req) {
+            auto x = crow::json::load(req.body);
+            if (!x || !x.has("username") || !x.has("password")) {
+                return crow::response(400, "Invalid JSON: username and password required");
+            }
+
+            std::string username = x["username"].s();
+            std::string password = x["password"].s();
+
+            if (AuthManager::authenticate(username, password)) {
+                std::string token = AuthManager::create_session(username);
+                crow::json::wvalue res;
+                res["token"] = token;
+                res["status"] = "success";
+                return crow::response(res);
+            } else {
+                return crow::response(401, "Invalid credentials");
+            }
+        });
+
+        // Route to logout
+        CROW_ROUTE(app, "/logout").methods(crow::HTTPMethod::POST)
+        ([&is_authenticated](const crow::request& req) {
+            auto token = req.get_header_value("X-Session-Token");
+            if (AuthManager::validate_session(token)) {
+                AuthManager::end_session(token);
+                return crow::response(200, "Logged out successfully");
+            }
+            return crow::response(401, "Not logged in");
+        });
+
+        // Route to get all entries in a table
+        CROW_ROUTE(app, "/table/<string>")
+        ([&is_authenticated](const crow::request& req, std::string table_name) {
+            if (!is_authenticated(req)) return crow::response(401, "Authentication required");
+            auto result = table_to_json(table_name);
+            return crow::response(result);
+        });
+
+        // Route to get metadata of a table
+        CROW_ROUTE(app, "/meta/<string>")
+        ([&is_authenticated](const crow::request& req, std::string table_name) {
+            if (!is_authenticated(req)) return crow::response(401, "Authentication required");
+            struct table* meta = fetch_meta_data(table_name);
+
         if (!meta) {
             return crow::response(404, "Table not found");
         }
@@ -112,7 +155,8 @@ int main() {
 
     // Route to list all tables
     CROW_ROUTE(app, "/tables")
-    ([]() {
+    ([&is_authenticated](const crow::request& req) {
+        if (!is_authenticated(req)) return crow::response(401, "Authentication required");
         std::vector<std::string> tables;
         std::ifstream fp("./table/table_list");
         std::string name;
@@ -130,7 +174,8 @@ int main() {
 
     // Route to create a table
     CROW_ROUTE(app, "/create").methods(crow::HTTPMethod::POST)
-    ([](const crow::request& req) {
+    ([&is_authenticated](const crow::request& req) {
+        if (!is_authenticated(req)) return crow::response(401, "Authentication required");
         auto x = crow::json::load(req.body);
         if (!x || !x.has("table_name") || !x.has("columns")) {
             return crow::response(400, "Invalid JSON");
@@ -152,7 +197,8 @@ int main() {
 
     // Route to insert data into a table
     CROW_ROUTE(app, "/insert/<string>").methods(crow::HTTPMethod::POST)
-    ([](const crow::request& req, std::string table_name) {
+    ([&is_authenticated](const crow::request& req, std::string table_name) {
+        if (!is_authenticated(req)) return crow::response(401, "Authentication required");
         auto x = crow::json::load(req.body);
         if (!x) {
             return crow::response(400, "Invalid JSON");
@@ -196,7 +242,8 @@ int main() {
 
     // Route for bulk insertion into a table
     CROW_ROUTE(app, "/bulk_insert/<string>").methods(crow::HTTPMethod::POST)
-    ([](const crow::request& req, std::string table_name) {
+    ([&is_authenticated](const crow::request& req, std::string table_name) {
+        if (!is_authenticated(req)) return crow::response(401, "Authentication required");
         auto x = crow::json::load(req.body);
         if (!x || x.size() == 0) {
             return crow::response(400, "Invalid JSON or empty array");

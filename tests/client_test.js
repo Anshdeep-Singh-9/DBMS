@@ -2,15 +2,32 @@ const http = require('http');
 
 const BASE_URL = 'http://localhost:18080';
 
+// Command line arguments for authentication
+const args = process.argv.slice(2);
+if (args.length < 2) {
+    console.error('Usage: node tests/client_test.js <username> <password>');
+    process.exit(1);
+}
+
+const USERNAME = args[0];
+const PASSWORD = args[1];
+
+let sessionToken = null;
+
 /**
  * Helper function to make HTTP requests
  */
-function request(method, path, body = null) {
+function request(method, path, body = null, token = null) {
     return new Promise((resolve, reject) => {
         const url = `${BASE_URL}${path}`;
+        const headers = {};
+        
+        if (body) headers['Content-Type'] = 'application/json';
+        if (token) headers['X-Session-Token'] = token;
+
         const options = {
             method: method,
-            headers: body ? { 'Content-Type': 'application/json' } : {}
+            headers: headers
         };
 
         const req = http.request(url, options, (res) => {
@@ -33,85 +50,76 @@ function request(method, path, body = null) {
 }
 
 async function runTests() {
-    console.log('--- Starting MiniDB API Tests ---\n');
+    console.log('--- Starting MiniDB Secure API Tests ---\n');
 
     try {
-        // 1. Health Check
+        // 1. Login
+        console.log(`Logging in as ${USERNAME}...`);
+        const loginRes = await request('POST', '/login', { username: USERNAME, password: PASSWORD });
+        
+        if (loginRes.statusCode !== 200 || !loginRes.body || !loginRes.body.token) {
+            console.error(`Login failed (Status ${loginRes.statusCode}):`, loginRes.rawBody);
+            return;
+        }
+
+        sessionToken = loginRes.body.token;
+        console.log('Login successful. Token acquired.\n');
+
+        // 2. Health Check
         console.log('Testing /health...');
-        const health = await request('GET', '/health');
+        const health = await request('GET', '/health', null, sessionToken);
         console.log(`Status: ${health.statusCode}, Response: ${health.rawBody}\n`);
 
-        // 2. List Tables
+        // 3. List Tables
         console.log('Testing /tables...');
-        const tables = await request('GET', '/tables');
+        const tables = await request('GET', '/tables', null, sessionToken);
         console.log(`Status: ${tables.statusCode}, Tables:`, tables.body ? tables.body.tables : 'error', '\n');
 
-        // 3. Create Table
-        const testTableName = 'api';
+        // 4. Create Table
+        const testTableName = 'api_secure_test';
         console.log(`Testing /create for table: ${testTableName}...`);
         const createData = {
             table_name: testTableName,
             columns: [
                 { name: 'id', type: 'INT' },
                 { name: 'name', type: 'VARCHAR(50)' },
-                { name: 'age', type: 'INT' }
+                { name: 'val', type: 'INT' }
             ]
         };
-        const createRes = await request('POST', '/create', createData);
+        const createRes = await request('POST', '/create', createData, sessionToken);
         console.log(`Status: ${createRes.statusCode}, Response: ${createRes.rawBody}\n`);
-
-        // 4. Fetch Metadata
-        console.log(`Testing /meta/${testTableName}...`);
-        const metaRes = await request('GET', `/meta/${testTableName}`);
-        console.log(`Status: ${metaRes.statusCode}`);
-        if (metaRes.body) {
-            console.log('Metadata:', JSON.stringify(metaRes.body, null, 2));
-        }
-        console.log();
 
         // 5. Insert Data
         console.log(`Testing /insert/${testTableName}...`);
-        const insertData = {
-            id: 101,
-            name: 'API Tester',
-            age: 25
-        };
-
-        const insert_into_user = {
-            Roll_No: 6,
-            Name: "Udaynoor Singh"
-        };
-        const user_insert = await request('POST', '/insert/users', insert_into_user);
-        console.log(`Status: ${user_insert.statusCode}, Response: ${user_insert.rawBody}\n`);
-
-        const insertRes = await request('POST', `/insert/${testTableName}`, insertData);
+        const insertData = { id: 500, name: 'Secure Entry', val: 99 };
+        const insertRes = await request('POST', `/insert/${testTableName}`, insertData, sessionToken);
         console.log(`Status: ${insertRes.statusCode}, Response: ${insertRes.rawBody}\n`);
 
         // 6. Bulk Insert Data
         console.log(`Testing /bulk_insert/${testTableName}...`);
         const bulkInsertData = [
-            { id: 102, name: 'Bulk User 1', age: 30 },
-            { id: 103, name: 'Bulk User 2', age: 35 },
-            { id: 104, name: 'Bulk User 3', age: 40 }
+            { id: 501, name: 'Bulk Secure 1', val: 10 },
+            { id: 502, name: 'Bulk Secure 2', val: 20 }
         ];
-        const bulkInsertRes = await request('POST', `/bulk_insert/${testTableName}`, bulkInsertData);
+        const bulkInsertRes = await request('POST', `/bulk_insert/${testTableName}`, bulkInsertData, sessionToken);
         console.log(`Status: ${bulkInsertRes.statusCode}, Response: ${bulkInsertRes.rawBody}\n`);
 
         // 7. Fetch Table Data
         console.log(`Testing /table/${testTableName}...`);
-        const dataRes = await request('GET', `/table/${testTableName}`);
+        const dataRes = await request('GET', `/table/${testTableName}`, null, sessionToken);
         console.log(`Status: ${dataRes.statusCode}`);
         if (Array.isArray(dataRes.body)) {
-            console.log('Table Contents:');
             console.table(dataRes.body);
-        } else {
-            console.log('Response:', dataRes.body || dataRes.rawBody);
         }
 
-        console.log('\n--- Tests Completed ---');
+        // 8. Logout
+        console.log('\nLogging out...');
+        const logoutRes = await request('POST', '/logout', null, sessionToken);
+        console.log(`Status: ${logoutRes.statusCode}, Response: ${logoutRes.rawBody}`);
+
+        console.log('\n--- Secure Tests Completed ---');
     } catch (err) {
         console.error('\nTest execution failed:', err.message);
-        console.log('Make sure the MiniDB API server is running at', BASE_URL);
     }
 }
 
