@@ -133,6 +133,118 @@ void insert_command(char tname[], const std::vector<TupleValue>& values, const s
               << target_page_id << ", " << slot_id << ")" << std::endl;
 }
 
+void bulk_insert_command(char tname[], const std::vector<std::vector<TupleValue>>& all_values, const std::vector<ColumnSchema>& schema) {
+    // 1. Prepare the Index
+    BPtree index(tname);
+    
+    // 2. Manage the Data Storage (Page-Based)
+    std::string data_path = "table/";
+    data_path += tname;
+    data_path += "/data.dat";
+    
+    DiskManager data_disk(data_path, STORAGE_PAGE_SIZE);
+    if (!data_disk.open_or_create()) {
+        std::cout << "Error: Could not open data file." << std::endl;
+        return;
+    }
+
+    BufferPoolManager buffer_pool(4, &data_disk);
+
+    // Keep track of the current page to avoid searching from page 0 every time
+    uint32_t current_page_id = INVALID_PAGE_ID;
+    char* current_buffer = NULL;
+    DataPage current_page;
+
+    for (const auto& values : all_values) {
+        if (values.empty()) continue;
+
+        // Check if primary key already exists (assuming first column is PK)
+        int pk_value = values[0].int_value;
+        if (index.search(pk_value).page_id != INVALID_PAGE_ID) {
+            std::cout << "Error: Primary Key " << pk_value << " already exists. Skipping row." << std::endl;
+            continue;
+        }
+
+        // Serialize the data into a tuple
+        std::vector<char> tuple_data;
+        if (!TupleSerializer::serialize(schema, values, tuple_data)) {
+            std::cout << "Error: Failed to serialize tuple. Skipping row." << std::endl;
+            continue;
+        }
+
+        // 4. Find/Use a page with enough space
+        bool found_space = false;
+
+        // Check if the currently pinned page has space
+        if (current_page_id != INVALID_PAGE_ID) {
+            if (current_page.can_store(tuple_data.size())) {
+                found_space = true;
+            } else {
+                // Current page is full, unpin it and look for a new one
+                buffer_pool.unpin_page(current_page_id, true);
+                buffer_pool.flush_page(current_page_id);
+                current_page_id = INVALID_PAGE_ID;
+                current_buffer = NULL;
+            }
+        }
+
+        if (!found_space) {
+            // Search existing pages (starting from the last known page to be efficient)
+            // For simplicity and correctness in this architecture, we search from 0 
+            // but we only do this when the current page is full.
+            for (uint32_t i = 0; i < data_disk.page_count(); ++i) {
+                char* frame_data = buffer_pool.fetch_page(i);
+                if (frame_data == NULL) continue;
+
+                current_page.load_from_buffer(frame_data, STORAGE_PAGE_SIZE);
+                if (current_page.can_store(tuple_data.size())) {
+                    current_page_id = i;
+                    current_buffer = frame_data;
+                    found_space = true;
+                    break;
+                }
+                buffer_pool.unpin_page(i, false);
+            }
+        }
+
+        if (!found_space) {
+            // Create a new page
+            current_buffer = buffer_pool.new_page(current_page_id);
+            if (current_buffer == NULL) {
+                std::cout << "Error: Could not allocate a new page. Skipping row." << std::endl;
+                continue;
+            }
+            current_page.initialize(current_page_id);
+            std::memcpy(current_buffer, current_page.data(), STORAGE_PAGE_SIZE);
+            found_space = true;
+        }
+
+        // 5. Insert tuple into the in-memory page frame
+        uint16_t slot_id;
+        if (!current_page.insert_tuple(tuple_data.data(), tuple_data.size(), slot_id)) {
+            std::cout << "Error: Failed to insert tuple into page. Skipping row." << std::endl;
+            // This shouldn't happen if can_store returned true
+            continue;
+        }
+
+        std::memcpy(current_buffer, current_page.data(), STORAGE_PAGE_SIZE);
+        // We keep the page pinned for the next iteration
+
+        // 6. Update the B+ Tree Index with the new RID
+        RID rid(current_page_id, slot_id);
+        index.insert(pk_value, rid);
+
+        std::cout << "Successfully inserted row into " << tname << " at RID(" 
+                  << current_page_id << ", " << slot_id << ")" << std::endl;
+    }
+
+    // Final cleanup: unpin the last used page
+    if (current_page_id != INVALID_PAGE_ID) {
+        buffer_pool.unpin_page(current_page_id, true);
+        buffer_pool.flush_page(current_page_id);
+    }
+}
+
 void insert(){
     char tab[MAX_NAME];
     std::cout << "enter table name: ";

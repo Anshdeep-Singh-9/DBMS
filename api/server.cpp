@@ -192,6 +192,56 @@ int main() {
         return crow::response(200, "Insertion triggered (check logs for success/failure)");
     });
 
+    // Route for bulk insertion into a table
+    CROW_ROUTE(app, "/bulk_insert/<string>").methods(crow::HTTPMethod::POST)
+    ([](const crow::request& req, std::string table_name) {
+        auto x = crow::json::load(req.body);
+        if (!x || x.size() == 0) {
+            return crow::response(400, "Invalid JSON or empty array");
+        }
+
+        struct table* meta = fetch_meta_data(table_name);
+        if (!meta) {
+            return crow::response(404, "Table not found");
+        }
+
+        std::vector<ColumnSchema> schema;
+        for (int i = 0; i < meta->count; i++) {
+            schema.push_back(ColumnSchema(meta->col[i].col_name,
+                                         meta->col[i].type == INT ? STORAGE_COLUMN_INT
+                                                                  : STORAGE_COLUMN_VARCHAR,
+                                         meta->col[i].size));
+        }
+
+        std::vector<std::vector<TupleValue>> all_values;
+        for (auto& row : x) {
+            std::vector<TupleValue> values;
+            bool valid_row = true;
+            for (int i = 0; i < meta->count; i++) {
+                std::string col_name = meta->col[i].col_name;
+                if (!row.has(col_name)) {
+                    valid_row = false;
+                    break;
+                }
+                if (meta->col[i].type == INT) {
+                    values.push_back(TupleValue::FromInt(row[col_name].i()));
+                } else {
+                    values.push_back(TupleValue::FromVarchar(row[col_name].s()));
+                }
+            }
+            if (valid_row) {
+                all_values.push_back(values);
+            }
+        }
+
+        char tname[MAX_NAME];
+        strcpy(tname, table_name.c_str());
+        bulk_insert_command(tname, all_values, schema);
+
+        delete meta;
+        return crow::response(200, "Bulk insertion triggered (check logs for success/failure)");
+    });
+
     // Health check route
     CROW_ROUTE(app, "/health")
     ([]() {
