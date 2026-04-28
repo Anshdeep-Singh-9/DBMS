@@ -90,6 +90,43 @@ node test/client_test.js Students
 
 ---
 
+## 🛠️ Summary of Recent Changes
+
+### 🆕 Created Files
+- **`include/sha256.h` & `src/sha256.cpp`**
+  - `SHA256::hash()`: Main entry point for hashing strings.
+  - `SHA256::transform()`, `init()`, `update()`, `final()`: Internal SHA-256 logic.
+- **`include/auth.h` & `src/auth.cpp`**
+  - `AuthManager::init()`: Initializes the authentication system and internal tables.
+  - `AuthManager::register_user()`: Hashes and stores new user credentials.
+  - `AuthManager::authenticate()`: Validates credentials against the stored hashes.
+  - `AuthManager::create_session()`: Generates a 32-character random session token.
+  - `AuthManager::validate_session()`: Checks if an API token is active.
+  - `AuthManager::end_session()`: Invalidates a session token (logout).
+- **`Documentation/auth.md`**
+  - Comprehensive documentation of the security architecture.
+
+### 🆙 Updated Files
+- **`api/server.cpp`**
+  - Added Endpoint: `POST /bulk_insert/<table_name>`
+  - Added Endpoint: `POST /login`
+  - Added Endpoint: `POST /logout`
+  - Added Internal Helper: `is_authenticated()` (session validation middleware).
+- **`include/insert.h` & `src/insert.cpp`**
+  - `bulk_insert_command()`: Efficiently inserts multiple rows by keeping pages pinned and reusing resources.
+- **`include/file_handler.h` & `src/file_handler.cpp`**
+  - `open_system_file()`: Opens/creates internal database files in the `system/` directory.
+  - `open_system_file_read()`: Read-only access to system files.
+  - `store_system_meta_data()` & `fetch_system_meta_data()`: Metadata management for internal tables.
+  - Updated `system_check()`: Now automatically ensures the `system/` folder exists.
+- **`src/main.cpp`**
+  - Updated `main()`: Added first-run interactive user setup and hashed password login check.
+  - Updated `start_system()`: Integrated `AuthManager` initialization.
+- **`tests/client_test.js`**
+  - Added automated test case for the Bulk Insertion API endpoint.
+
+---
+
 ## 📝 Technical Note: Statelessness
 The API is **stateless**. This means each request is independent. The server does not maintain a persistent connection or "login session" for the API. Every time a request is made to `/table/<name>`, the server:
 1. Locates the table metadata.

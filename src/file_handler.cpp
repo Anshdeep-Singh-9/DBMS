@@ -117,10 +117,15 @@ void system_check() {
         fs::path exe_path = fs::canonical("/proc/self/exe");
         fs::path root_dir = exe_path.parent_path().parent_path().parent_path();
         fs::path table_dir = root_dir / "table";
+        fs::path system_dir = root_dir / "system";
         fs::path table_list = table_dir / "table_list";
 
         if (!fs::exists(table_dir)) {
             fs::create_directories(table_dir);
+        }
+
+        if (!fs::exists(system_dir)) {
+            fs::create_directories(system_dir);
         }
 
         if (!fs::exists(table_list)) {
@@ -128,12 +133,65 @@ void system_check() {
             file.close();
         }
     } catch (...) {
-        if (!fs::exists("table")) {
-            fs::create_directories("table");
-        }
-        if (!fs::exists("table/table_list")) {
-            ofstream file("table/table_list");
+        // Fallback if /proc/self/exe fails
+        if (!fs::exists("./table")) mkdir("./table", 0775);
+        if (!fs::exists("./system")) mkdir("./system", 0775);
+        if (!fs::exists("./table/table_list")) {
+            ofstream file("./table/table_list");
             file.close();
         }
     }
+}
+
+// --- SYSTEM FILE PTR FUNCTIONS ---
+FilePtr open_system_file(const char* t_name, const char* perm) {
+    struct stat st = {0};
+    char name[MAX_PATH];
+    strcpy(name, "./system/");
+
+    if (stat(name, &st) == -1) mkdir(name, 0775);
+    strcat(name, t_name);
+    strcat(name, "/");
+    if (stat(name, &st) == -1) mkdir(name, 0775);
+    strcat(name, "met");
+
+    FilePtr fp = fopen(name, perm);
+    if (!fp) printf("\nError in opening system file: %s\n", name);
+    return fp;
+}
+
+FilePtr open_system_file_read(const char* t_name, const char* perm) {
+    char name[MAX_PATH];
+    strcpy(name, "./system/");
+    strcat(name, t_name);
+    strcat(name, "/met");
+
+    struct stat st;
+    if (stat(name, &st) == -1) {
+        return NULL; 
+    }
+
+    return fopen(name, perm);
+}
+
+int store_system_meta_data(struct table *t_ptr) {
+    FilePtr fp = open_system_file(t_ptr->name, "w"); 
+    if (!fp) return -1;
+    fwrite(t_ptr, sizeof(struct table), 1, fp);
+    fclose(fp);
+    return 0;
+}
+
+struct table* fetch_system_meta_data(string name) {
+    FilePtr fp = open_system_file_read(name.c_str(), "r"); 
+    if (!fp) return NULL;
+
+    struct table* t = new table();
+    if (fread(t, sizeof(struct table), 1, fp) != 1) {
+        delete t;
+        fclose(fp);
+        return NULL;
+    }
+    fclose(fp);
+    return t;
 }

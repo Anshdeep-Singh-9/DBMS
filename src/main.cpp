@@ -4,6 +4,7 @@
 #include "file_handler.h"
 #include "recovery_manager.h"
 #include "where.h"
+#include "auth.h"
 
 #include <iostream>
 #include <cstdio>
@@ -320,6 +321,7 @@ void input() {
 }
 
 void start_system() {
+    AuthManager::init();
     system_check();
     RecoveryManager::recover_all_tables();
 
@@ -354,22 +356,58 @@ string get_password() {
 }
 
 int main(int argc, char *argv[]) {
+    AuthManager::init();
+
     if (argc == 4 || argc == 5) {
         if (strcmp(argv[1], "-u") == 0 && strcmp(argv[3], "-p") == 0) {
-            const string mypass = "pass";
+            string username = argv[2];
 
             clear_screen();
             print_banner();
 
-            cout << BOLD << "User: " << RESET << argv[2] << "\n\n";
+            // First run check
+            if (!AuthManager::has_any_user()) {
+                cout << YELLOW << "No users found in the system.\n" << RESET;
+                cout << BOLD << "Creating initial user: " << RESET << username << "\n";
+                
+                string pass1, pass2;
+                while (true) {
+                    cout << "Set password: ";
+                    struct termios term;
+                    tcgetattr(STDIN_FILENO, &term);
+                    term.c_lflag &= ~ECHO;
+                    tcsetattr(STDIN_FILENO, TCSANOW, &term);
+                    cin >> pass1;
+                    term.c_lflag |= ECHO;
+                    tcsetattr(STDIN_FILENO, TCSANOW, &term);
+                    cout << "\nConfirm password: ";
+                    tcgetattr(STDIN_FILENO, &term);
+                    term.c_lflag &= ~ECHO;
+                    tcsetattr(STDIN_FILENO, TCSANOW, &term);
+                    cin >> pass2;
+                    term.c_lflag |= ECHO;
+                    tcsetattr(STDIN_FILENO, TCSANOW, &term);
+                    cout << "\n";
 
-            string password = get_password();
-
-            if (password == mypass) {
-                cout << GREEN << "Correct password!\n" << RESET;
+                    if (pass1 == pass2) {
+                        AuthManager::register_user(username, pass1);
+                        cout << GREEN << "User created successfully!\n" << RESET;
+                        break;
+                    } else {
+                        cout << RED << "Passwords do not match. Try again.\n" << RESET;
+                    }
+                }
             } else {
-                cout << RED << "Incorrect password!\n" << RESET;
-                return 0;
+                cout << BOLD << "User: " << RESET << username << "\n\n";
+
+                string password = get_password();
+
+                if (AuthManager::authenticate(username, password)) {
+                    cout << GREEN << "Correct password!\n" << RESET;
+                } else {
+                    cout << RED << "Incorrect password!\n" << RESET;
+                    return 0;
+                }
             }
         } else {
             cout << RED << "\nInvalid usage.\n" << RESET;
