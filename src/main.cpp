@@ -2,6 +2,8 @@
 #include "display.h"
 #include "parser.h"
 #include "file_handler.h"
+#include "recovery_manager.h"
+#include "where.h"
 
 #include <iostream>
 #include <cstdio>
@@ -92,13 +94,13 @@ void help() {
     print_small_line();
 
     cout << GREEN << "SHOW TABLES;\n" << RESET;
-    cout << GREEN << "CREATE TABLE Students (ID INT, Name VARCHAR(50), Dept VARCHAR(20));\n" << RESET;
-    cout << GREEN << "INSERT INTO Students VALUES (1, Anshdeep Singh, CSE);\n" << RESET;
-    cout << GREEN << "INSERT INTO Students VALUES (2, \"Aditya Sirsalkar\", \"CSE\");\n" << RESET;
-    cout << GREEN << "SELECT * FROM Students;\n" << RESET;
-    cout << GREEN << "SELECT Name, Dept FROM Students;\n" << RESET;
-    cout << GREEN << "SELECT * FROM Students WHERE ID = 1;\n" << RESET;
-    cout << GREEN << "DROP TABLE Students;\n" << RESET;
+    cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n" << RESET;
+    cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n" << RESET;
+    cout << GREEN << "SELECT * FROM students;\n" << RESET;
+    cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
+    cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
+    cout << GREEN << "UPDATE students SET dept = ECE WHERE id = 1;\n" << RESET;
+    cout << GREEN << "DROP TABLE students;\n" << RESET;
 
     cout << "\n" << BOLD << "Notes\n" << RESET;
     print_small_line();
@@ -108,6 +110,8 @@ void help() {
     cout << "- Quotes are optional for VARCHAR values, but recommended for clarity.\n";
     cout << "- First column must be INT because it is used as primary key.\n";
     cout << "- INSERT values must follow the same order as table columns.\n";
+    cout << "- UPDATE supports WHERE column = value.\n";
+    cout << "- Primary key WHERE routes to B+ Tree lookup, non-primary WHERE uses linear scan.\n";
     cout << "- DROP TABLE is available through Query Console.\n";
     cout << "- Type BACK or EXIT inside Query Console to return to the main menu.\n";
 
@@ -166,12 +170,13 @@ void print_query_console_syntax() {
     print_small_line();
 
     cout << GREEN << "SHOW TABLES;\n" << RESET;
-    cout << GREEN << "CREATE TABLE Students (ID INT, Name VARCHAR(50), Dept VARCHAR(20));\n" << RESET;
-    cout << GREEN << "INSERT INTO Students VALUES (1, Anshdeep Singh, CSE);\n" << RESET;
-    cout << GREEN << "SELECT * FROM Students;\n" << RESET;
-    cout << GREEN << "SELECT Name, Dept FROM Students;\n" << RESET;
-    cout << GREEN << "SELECT * FROM Students WHERE ID = 1;\n" << RESET;
-    cout << GREEN << "DROP TABLE Students;\n" << RESET;
+    cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n" << RESET;
+    cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n" << RESET;
+    cout << GREEN << "SELECT * FROM students;\n" << RESET;
+    cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
+    cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
+    cout << GREEN << "UPDATE students SET dept = ECE WHERE id = 1;\n" << RESET;
+    cout << GREEN << "DROP TABLE students;\n" << RESET;
 
     print_small_line();
 }
@@ -222,11 +227,69 @@ void input() {
                 pause_screen(false);
                 break;
 
-            case 2:
-                print_section("Search");
-                cout << YELLOW << "Work in progress\n" << RESET;
+            case 2: {
+                print_section("Search Inside Table");
+
+                string search_table_name;
+                cout << BOLD << "Enter table name: " << RESET;
+                cin >> search_table_name;
+
+                char tab_check[MAX_NAME];
+                strncpy(tab_check, search_table_name.c_str(), MAX_NAME - 1);
+                tab_check[MAX_NAME - 1] = '\0';
+
+                if (search_table(tab_check) == 0) {
+                    cout << RED << "Error: Table '" << search_table_name
+                         << "' does not exist." << RESET << "\n";
+                    pause_screen(true);
+                    break;
+                }
+
+                table* search_meta = fetch_meta_data(search_table_name);
+                if (search_meta == NULL) {
+                    cout << RED << "Error: Could not load metadata." << RESET << "\n";
+                    pause_screen(true);
+                    break;
+                }
+
+                cout << "\n" << BOLD << "Available columns:\n" << RESET;
+                for (int ci = 0; ci < search_meta->count; ci++) {
+                    string type_str = (search_meta->col[ci].type == INT) ? "INT" : "VARCHAR";
+                    cout << "  [" << ci << "] "
+                         << search_meta->col[ci].col_name
+                         << " (" << type_str << ")";
+                    if (ci == 0) cout << " <- Primary Key";
+                    cout << "\n";
+                }
+
+                string search_col, search_val;
+                cout << "\n" << BOLD << "Enter column to search on: " << RESET;
+                cin >> search_col;
+                cout << BOLD << "Enter value to search for: " << RESET;
+                cin >> ws;
+                getline(cin, search_val);
+
+                if (search_val.size() >= 2 &&
+                    ((search_val.front() == '"' && search_val.back() == '"') ||
+                     (search_val.front() == '\'' && search_val.back() == '\''))) {
+                    search_val = search_val.substr(1, search_val.size() - 2);
+                }
+
+                delete search_meta;
+
+                WhereClause wc;
+                wc.present = true;
+                wc.column = search_col;
+                wc.op = "=";
+                wc.value = search_val;
+
+                vector<string> all_cols;
+                all_cols.push_back("*");
+                execute_select_where(search_table_name, all_cols, wc);
+
                 pause_screen(true);
                 break;
+            }
 
             case 3:
                 print_section("Table Metadata");
@@ -258,6 +321,7 @@ void input() {
 
 void start_system() {
     system_check();
+    RecoveryManager::recover_all_tables();
 
     clear_screen();
     print_banner();

@@ -7,6 +7,7 @@
 #include "tuple_serializer.h"
 #include "create.h"
 #include "insert.h"
+#include "recovery_manager.h"
 #include <vector>
 #include <string>
 
@@ -72,6 +73,7 @@ crow::json::wvalue table_to_json(const std::string& table_name) {
 
 int main() {
     system_check();
+    RecoveryManager::recover_all_tables();
     crow::SimpleApp app;
 
     // Route to get all entries in a table
