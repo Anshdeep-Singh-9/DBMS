@@ -136,6 +136,32 @@ int BPtree::get_record(int key) {
     return (rid.page_id == INVALID_PAGE_ID) ? BPTREE_SEARCH_NOT_FOUND : (int)rid.slot_id;
 }
 
+bool BPtree::update_rid(int key, RID new_rid) {
+    if (root_page_id_ == INVALID_PAGE_ID) return false;
+
+    uint32_t curr_id = root_page_id_;
+    BPtreeNode curr;
+    while (curr_id != INVALID_PAGE_ID) {
+        read_node(curr_id, curr);
+        if (curr.is_leaf) break;
+        int i = 0;
+        while (i < curr.num_keys && key >= curr.keys[i]) i++;
+        curr_id = curr.children[i];
+    }
+
+    if (curr_id == INVALID_PAGE_ID) return false;
+
+    for (int i = 0; i < curr.num_keys; ++i) {
+        if (curr.keys[i] == key) {
+            curr.values[i] = new_rid;
+            write_node(curr);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 int BPtree::insert_record(int key, int record_num) {
     if (search(key).page_id != INVALID_PAGE_ID) return BPTREE_INSERT_ERROR_EXIST;
     insert(key, RID(0, (uint16_t)record_num));

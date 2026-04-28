@@ -1,5 +1,6 @@
 #include "where.h"
 #include "BPtree.h"
+#include "buffer_pool_manager.h"
 #include "data_page.h"
 #include "disk_manager.h"
 #include "display.h"
@@ -147,9 +148,9 @@ static void search_via_bptree(const std::string& tab_name,
             return;
         }
 
-        char page_buffer[STORAGE_PAGE_SIZE];
-
-        if (!data_disk.read_page(rid.page_id, page_buffer)) {
+        BufferPoolManager buffer_pool(4, &data_disk);
+        char *page_buffer = buffer_pool.fetch_page(rid.page_id);
+        if (page_buffer == NULL) {
             std::cout << "Error: Could not read page " << rid.page_id << ".\n";
             return;
         }
@@ -162,6 +163,7 @@ static void search_via_bptree(const std::string& tab_name,
         if (!page.read_tuple(rid.slot_id, tuple_data)) {
             std::cout << "Error: Could not read slot " << rid.slot_id << " from page "
                       << rid.page_id << ".\n";
+            buffer_pool.unpin_page(rid.page_id, false);
             return;
         }
 
@@ -169,10 +171,12 @@ static void search_via_bptree(const std::string& tab_name,
 
         if (!TupleSerializer::deserialize(schema, tuple_data, values)) {
             std::cout << "Error: Failed to deserialize tuple.\n";
+            buffer_pool.unpin_page(rid.page_id, false);
             return;
         }
 
         output_rows.push_back(project_row(values, col_indices_to_print));
+        buffer_pool.unpin_page(rid.page_id, false);
     }
 
     print_result_table(output_schema, output_rows);
@@ -194,12 +198,13 @@ static void search_via_linear_scan(const std::string& tab_name,
         return;
     }
 
+    BufferPoolManager buffer_pool(4, &data_disk);
     std::vector<std::vector<TupleValue>> output_rows;
 
     for (uint32_t i = 0; i < data_disk.page_count(); ++i) {
-        char page_buffer[STORAGE_PAGE_SIZE];
+        char *page_buffer = buffer_pool.fetch_page(i);
 
-        if (!data_disk.read_page(i, page_buffer)) {
+        if (page_buffer == NULL) {
             continue;
         }
 
@@ -223,6 +228,8 @@ static void search_via_linear_scan(const std::string& tab_name,
                 output_rows.push_back(project_row(values, col_indices_to_print));
             }
         }
+
+        buffer_pool.unpin_page(i, false);
     }
 
     print_result_table(output_schema, output_rows);

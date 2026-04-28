@@ -53,6 +53,7 @@ class BPtree {
     int insert_record(int key, int record_num);
     int get_record(int key);
     RID search(int key);
+    bool update_rid(int key, RID new_rid);
     void print();
 
   private:

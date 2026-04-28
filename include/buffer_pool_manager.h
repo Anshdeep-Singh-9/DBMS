@@ -54,6 +54,24 @@ struct BufferFrame {
     explicit BufferFrame(uint32_t id);
 };
 
+struct BufferPoolStats {
+    uint64_t cache_hits;
+    uint64_t cache_misses;
+    uint64_t dirty_flushes;
+    uint64_t clean_evictions;
+    uint64_t dirty_evictions;
+    uint64_t checkpoints;
+
+    BufferPoolStats()
+        : cache_hits(0),
+          cache_misses(0),
+          dirty_flushes(0),
+          clean_evictions(0),
+          dirty_evictions(0),
+          checkpoints(0) {
+    }
+};
+
 class BufferPoolManager {
   public:
     BufferPoolManager(std::size_t pool_size, DiskManager* disk_manager);
@@ -118,6 +136,23 @@ class BufferPoolManager {
 
     std::size_t pool_size() const;
     std::size_t cached_page_count() const;
+    std::size_t pinned_page_count() const;
+    std::size_t dirty_page_count() const;
+    const BufferPoolStats& stats() const;
+
+    /*
+     * What:
+     * Flush a bounded number of dirty unpinned pages.
+     *
+     * Why:
+     * A complete buffer manager should not wait only for shutdown or eviction.
+     * It should be able to proactively reduce dirty pressure.
+     *
+     * Understanding:
+     * - max_pages == 0 means "flush all eligible dirty pages"
+     * - pinned pages are skipped because they are still in active use
+     */
+    std::size_t checkpoint(std::size_t max_pages = 0);
 
   private:
     std::size_t pool_size_;
@@ -125,6 +160,7 @@ class BufferPoolManager {
     std::vector<BufferFrame> frames_;
     std::unordered_map<uint32_t, uint32_t> page_table_;
     std::list<uint32_t> lru_list_;
+    BufferPoolStats stats_;
 
     bool has_free_frame() const;
     uint32_t find_free_frame() const;
@@ -132,6 +168,7 @@ class BufferPoolManager {
     void touch_lru(uint32_t frame_id);
     bool load_page_into_frame(uint32_t page_id, uint32_t frame_id);
     bool flush_frame(BufferFrame& frame);
+    bool should_run_background_flush() const;
 };
 
 #endif
