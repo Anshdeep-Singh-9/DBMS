@@ -4,6 +4,7 @@
 #include "insert.h"
 #include "tuple_serializer.h"
 #include "update.h"
+#include "delete.h"
 
 #include <cstring>
 #include <iostream>
@@ -462,6 +463,62 @@ void print_query_syntax_help() {
     cout << "DROP TABLE students;\n";
     cout << "--------------------------------------------------\n\n";
 }
+// ---------------------------------------------------------------------------
+// DELETE tokenizer
+// Syntax: DELETE FROM table WHERE col = val
+// ---------------------------------------------------------------------------
+void tokenize_delete(char query[]) {
+    string q(query);
+
+    // Strip trailing semicolon / whitespace
+    while (!q.empty() && (q.back() == ';' || q.back() == ' ' || q.back() == '\n'))
+        q.pop_back();
+
+    string q_lower = keyword_lower_copy(q);
+
+    // Locate " from " and " where " boundaries
+    size_t from_pos  = q_lower.find(" from ");
+    size_t where_pos = q_lower.find(" where ");
+
+    if (from_pos == string::npos) {
+        cout << "Syntax Error: Missing FROM keyword.\n"
+             << "Usage: DELETE FROM table WHERE col = val\n";
+        return;
+    }
+    if (where_pos == string::npos || where_pos <= from_pos) {
+        cout << "Syntax Error: Missing WHERE keyword.\n"
+             << "Usage: DELETE FROM table WHERE col = val\n";
+        return;
+    }
+
+    // Table name: between "delete from " and " where"
+    string table_name = trim_string(q.substr(from_pos + 6, where_pos - from_pos - 6));
+    if (table_name.empty()) {
+        cout << "Syntax Error: Missing table name.\n";
+        return;
+    }
+
+    // WHERE clause: everything after " where "
+    string where_clause = trim_string(q.substr(where_pos + 7));
+    size_t eq_pos = where_clause.find('=');
+    if (eq_pos == string::npos) {
+        cout << "Syntax Error: WHERE clause must be in format: col = value\n";
+        return;
+    }
+    string where_col = trim_string(where_clause.substr(0, eq_pos));
+    string where_val = remove_quotes(trim_string(where_clause.substr(eq_pos + 1)));
+    if (where_col.empty() || where_val.empty()) {
+        cout << "Syntax Error: WHERE column or value is empty.\n";
+        return;
+    }
+
+    DeleteStatement stmt;
+    stmt.table_name   = table_name;
+    stmt.where_column = where_col;
+    stmt.where_value  = where_val;
+
+    execute_delete(stmt);
+}
 
 void execute_query_string(string input_query) {
     input_query = trim_string(input_query);
@@ -498,6 +555,9 @@ void execute_query_string(string input_query) {
     }
     else if (token_temp == "update") {
         tokenize_update(final_query);
+    }
+    else if (token_temp == "delete") {
+        tokenize_delete(final_query);
     }
     else {
         cout << "\nError: Wrong syntax or unsupported command.\n";

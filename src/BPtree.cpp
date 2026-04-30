@@ -139,6 +139,7 @@ int BPtree::get_record(int key) {
 bool BPtree::update_rid(int key, RID new_rid) {
     if (root_page_id_ == INVALID_PAGE_ID) return false;
 
+    // Traverse to the leaf node that should contain this key
     uint32_t curr_id = root_page_id_;
     BPtreeNode curr;
     while (curr_id != INVALID_PAGE_ID) {
@@ -151,15 +152,46 @@ bool BPtree::update_rid(int key, RID new_rid) {
 
     if (curr_id == INVALID_PAGE_ID) return false;
 
+    // Scan the leaf for the exact key and update its RID in place
     for (int i = 0; i < curr.num_keys; ++i) {
         if (curr.keys[i] == key) {
             curr.values[i] = new_rid;
+            write_node(curr);  // persist the updated leaf node
+            return true;
+        }
+    }
+    return false;  // key not found
+}
+
+bool BPtree::remove_key(int key) {
+    if (root_page_id_ == INVALID_PAGE_ID) return false;
+
+    // Traverse to the leaf that should contain this key
+    uint32_t curr_id = root_page_id_;
+    BPtreeNode curr;
+    while (curr_id != INVALID_PAGE_ID) {
+        read_node(curr_id, curr);
+        if (curr.is_leaf) break;
+        int i = 0;
+        while (i < curr.num_keys && key >= curr.keys[i]) i++;
+        curr_id = curr.children[i];
+    }
+
+    if (curr_id == INVALID_PAGE_ID) return false;
+
+    // Find the key in the leaf and remove it by shifting entries left
+    for (int i = 0; i < curr.num_keys; ++i) {
+        if (curr.keys[i] == key) {
+            for (int j = i; j < curr.num_keys - 1; ++j) {
+                curr.keys[j]   = curr.keys[j + 1];
+                curr.values[j] = curr.values[j + 1];
+            }
+            curr.num_keys--;
             write_node(curr);
             return true;
         }
     }
-
-    return false;
+    return false;  // key not found in leaf
 }
 
 int BPtree::insert_record(int key, int record_num) {

@@ -97,11 +97,13 @@ void help() {
     cout << GREEN << "SHOW TABLES;\n" << RESET;
     cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n" << RESET;
     cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n" << RESET;
-    cout << GREEN << "SELECT * FROM students;\n" << RESET;
-    cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
-    cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
-    cout << GREEN << "UPDATE students SET dept = ECE WHERE id = 1;\n" << RESET;
-    cout << GREEN << "DROP TABLE students;\n" << RESET;
+    cout << GREEN << "SELECT * FROM Students WHERE ID = 1;\n" << RESET;
+    cout << GREEN << "SELECT * FROM Students WHERE Dept = CSE;\n" << RESET;
+    cout << GREEN << "UPDATE Students SET Dept = ECE WHERE ID = 1;\n" << RESET;
+    cout << GREEN << "UPDATE Students SET Dept = ECE WHERE Name = Anshdeep Singh;\n" << RESET;
+    cout << GREEN << "DELETE FROM Students WHERE ID = 1;\n" << RESET;
+    cout << GREEN << "DELETE FROM Students WHERE Dept = CSE;\n" << RESET;
+    cout << GREEN << "DROP TABLE Students;\n" << RESET;
 
     cout << "\n" << BOLD << "Notes\n" << RESET;
     print_small_line();
@@ -110,10 +112,13 @@ void help() {
     cout << "- VARCHAR values keep the original case exactly as typed.\n";
     cout << "- Quotes are optional for VARCHAR values, but recommended for clarity.\n";
     cout << "- First column must be INT because it is used as primary key.\n";
+    cout << "- Primary key column CANNOT be updated (immutable index key).\n";
     cout << "- INSERT values must follow the same order as table columns.\n";
-    cout << "- UPDATE supports WHERE column = value.\n";
-    cout << "- Primary key WHERE routes to B+ Tree lookup, non-primary WHERE uses linear scan.\n";
-    cout << "- DROP TABLE is available through Query Console.\n";
+    cout << "- UPDATE: if WHERE column is primary key => B+ Tree lookup (fast).\n";
+    cout << "- UPDATE: if WHERE column is non-primary => Linear scan (all matching rows).\n";
+    cout << "- DELETE: if WHERE column is primary key => B+ Tree lookup (fast).\n";
+    cout << "- DELETE: if WHERE column is non-primary => Linear scan (all matching rows).\n";
+    cout << "- SELECT WHERE: primary key => B+ Tree; other column => Linear scan.\n";
     cout << "- Type BACK or EXIT inside Query Console to return to the main menu.\n";
 
     print_small_line();
@@ -177,6 +182,8 @@ void print_query_console_syntax() {
     cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
     cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
     cout << GREEN << "UPDATE students SET dept = ECE WHERE id = 1;\n" << RESET;
+    cout << GREEN << "DELETE FROM students WHERE id = 1;\n" << RESET;
+    cout << GREEN << "DELETE FROM students WHERE dept = CSE;\n" << RESET;
     cout << GREEN << "DROP TABLE students;\n" << RESET;
 
     print_small_line();
