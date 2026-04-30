@@ -132,6 +132,8 @@ void insert_command(char tname[], const std::vector<TupleValue>& values, const s
         return;
     }
 
+    RecoveryManager::maybe_crash_after_wal("insert");
+
     std::memcpy(target_buffer, page.data(), STORAGE_PAGE_SIZE);
     buffer_pool.unpin_page(target_page_id, true);
     buffer_pool.flush_page(target_page_id);
