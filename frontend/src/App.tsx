@@ -30,6 +30,15 @@ interface TableList {
   tables: string[];
 }
 
+interface QueryResult {
+  type: 'select' | 'dml' | 'error';
+  strategy?: string;
+  columns?: { name: string; type: string; size: number }[];
+  rows?: Record<string, any>[];
+  row_count?: number;
+  message?: string;
+}
+
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'))
   const [username, setUsername] = useState('')
@@ -55,6 +64,10 @@ function App() {
 
   // Raw Query State
   const [rawQuery, setRawQuery] = useState('')
+
+  // Query Result Dialog
+  const [queryResult, setQueryResult] = useState<QueryResult | null>(null)
+  const [showQueryResult, setShowQueryResult] = useState(false)
 
   const api = axios.create({
     baseURL: '/api',
@@ -152,17 +165,26 @@ function App() {
     setLoading(true)
     setError(null)
     setSuccess(null)
+    setQueryResult(null)
     try {
-      const res = await api.post('/query', { query: rawQuery })
-      setSuccess(res.data)
-      setRawQuery('')
-      // Refresh tables list in case it was a CREATE/DROP
-      fetchTables()
-      // If we are viewing a table, refresh it too
-      if (selectedTable) fetchTableDetails(selectedTable)
-      setTimeout(() => setSuccess(null), 3000)
+      const res = await api.post<QueryResult>('/query', { query: rawQuery })
+      const data = res.data
+      if (data.type === 'select') {
+        setQueryResult(data)
+        setShowQueryResult(true)
+        setRawQuery('')
+      } else if (data.type === 'error') {
+        setError(data.message || 'Query error')
+      } else {
+        // DML (CREATE, INSERT, UPDATE, DROP, SHOW)
+        setSuccess('Query executed successfully')
+        setRawQuery('')
+        fetchTables()
+        if (selectedTable) fetchTableDetails(selectedTable)
+        setTimeout(() => setSuccess(null), 3000)
+      }
     } catch (err: any) {
-      setError(err.response?.data || 'Query execution failed')
+      setError(err.response?.data?.message || err.response?.data || 'Query execution failed')
     } finally {
       setLoading(false)
     }
@@ -613,6 +635,76 @@ function App() {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    )}
+
+    {/* ── Query Result Dialog ───────────────────────────────── */}
+    {showQueryResult && queryResult && queryResult.type === 'select' && (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 2000, padding: '1rem'
+      }}>
+        <div className="card" style={{ width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+          {/* Header */}
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Search size={20} color="#646cff" />
+              <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Query Result</h2>
+              <span className="badge badge-blue">{queryResult.row_count} row{queryResult.row_count !== 1 ? 's' : ''}</span>
+              {queryResult.strategy && (
+                <span style={{
+                  padding: '0.2rem 0.6rem', borderRadius: 4,
+                  fontSize: '0.75rem', fontWeight: 600,
+                  backgroundColor: queryResult.strategy.includes('B+') ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                  color: queryResult.strategy.includes('B+') ? '#10b981' : '#f59e0b'
+                }}>
+                  ⚡ {queryResult.strategy}
+                </span>
+              )}
+            </div>
+            <button onClick={() => setShowQueryResult(false)} style={{ border: 'none', background: 'none', fontSize: '1.4rem', cursor: 'pointer' }}>×</button>
+          </div>
+
+          {/* Table */}
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {queryResult.rows && queryResult.rows.length === 0 ? (
+              <div className="flex items-center justify-center p-8 text-gray" style={{ flexDirection: 'column' }}>
+                <Search size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
+                <p style={{ margin: 0 }}>No matching rows found</p>
+              </div>
+            ) : (
+              <table style={{ marginTop: 0 }}>
+                <thead>
+                  <tr>
+                    {queryResult.columns?.map(col => (
+                      <th key={col.name}>
+                        {col.name}
+                        <div className="text-sm text-gray" style={{ fontWeight: 400 }}>{col.type}({col.size})</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {queryResult.rows?.map((row, i) => (
+                    <tr key={i}>
+                      {queryResult.columns?.map(col => (
+                        <td key={col.name}>{String(row[col.name] ?? '')}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-end">
+            <button className="btn-primary" onClick={() => setShowQueryResult(false)}>Close</button>
+          </div>
         </div>
       </div>
     )}
