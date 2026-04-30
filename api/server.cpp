@@ -9,6 +9,7 @@
 #include "insert.h"
 #include "recovery_manager.h"
 #include "auth.h"
+#include "parser.h"
 #include <vector>
 #include <string>
 
@@ -102,6 +103,28 @@ int main() {
                 return crow::response(res);
             } else {
                 return crow::response(401, "Invalid credentials");
+            }
+        });
+
+        // Route to register a new user
+        CROW_ROUTE(app, "/register").methods(crow::HTTPMethod::POST)
+        ([](const crow::request& req) {
+            auto x = crow::json::load(req.body);
+            if (!x || !x.has("username") || !x.has("password")) {
+                return crow::response(400, "Invalid JSON: username and password required");
+            }
+
+            std::string username = x["username"].s();
+            std::string password = x["password"].s();
+
+            if (AuthManager::user_exists(username)) {
+                return crow::response(400, "User already exists");
+            }
+
+            if (AuthManager::register_user(username, password)) {
+                return crow::response(201, "User registered successfully");
+            } else {
+                return crow::response(500, "Failed to register user");
             }
         });
 
@@ -295,6 +318,26 @@ int main() {
     CROW_ROUTE(app, "/health")
     ([]() {
         return "MiniDB API is running!";
+    });
+
+    // Route to execute raw query strings
+    CROW_ROUTE(app, "/query").methods(crow::HTTPMethod::POST)
+    ([&is_authenticated](const crow::request& req) {
+        if (!is_authenticated(req)) return crow::response(401, "Authentication required");
+        
+        auto x = crow::json::load(req.body);
+        if (!x || !x.has("query")) {
+            return crow::response(400, "Invalid JSON: 'query' field required");
+        }
+
+        std::string query = x["query"].s();
+        
+        // Note: The parser currently prints to stdout/stderr.
+        // We'll execute it and return a generic success message.
+        // Future improvements could involve capturing stdout.
+        execute_query_string(query);
+        
+        return crow::response(200, "Query executed (check server logs for details)");
     });
 
     app.port(18080).multithreaded().run();

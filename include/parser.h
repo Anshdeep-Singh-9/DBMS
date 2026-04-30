@@ -3,4 +3,4 @@
 
 extern void get_query();
 
-extern void parse_create();
+extern void execute_query_string(string input_query);
