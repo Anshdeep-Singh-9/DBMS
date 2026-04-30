@@ -65,6 +65,16 @@ class RecoveryManager {
     static bool mark_page_applied(const RecoveryTicket& ticket);
     static bool mark_insert_applied(const RecoveryTicket& ticket);
 
+    /*
+     * Debug / demo-only failpoint.
+     *
+     * If the environment variable MINIDB_CRASH_AFTER_WAL is set, MiniDB
+     * intentionally exits right after WAL logging and before the real data /
+     * index path finishes. This lets us demonstrate restart recovery in a
+     * deterministic way instead of guessing with kill -9 or system power-off.
+     */
+    static void maybe_crash_after_wal(const char* operation_name);
+
     static bool recover_all_tables();
     static bool recover_table(const std::string& table_name);
 };
