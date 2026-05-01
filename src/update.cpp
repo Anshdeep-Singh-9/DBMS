@@ -37,7 +37,6 @@ RID insert_relocated_tuple(DiskManager& disk,
                 if (!ticket.valid) {
                     return RID();
                 }
-                RecoveryManager::maybe_crash_after_wal("update");
                 if (!disk.write_page(pid, pg)) {
                     return RID();
                 }
@@ -65,7 +64,6 @@ RID insert_relocated_tuple(DiskManager& disk,
     if (!ticket.valid) {
         return RID();
     }
-    RecoveryManager::maybe_crash_after_wal("update");
 
     if (!disk.write_page(new_pid, dp.data())) {
         return RID();
@@ -147,7 +145,6 @@ bool apply_update_at_rid(const std::string& tab_name,
             std::cout << "Error: Could not write recovery log for UPDATE.\n";
             return false;
         }
-        RecoveryManager::maybe_crash_after_wal("update");
         if (!disk.write_page(rid.page_id, buf)) {
             return false;
         }
@@ -162,7 +159,6 @@ bool apply_update_at_rid(const std::string& tab_name,
         std::cout << "Error: Could not write recovery log for slot relocation.\n";
         return false;
     }
-    RecoveryManager::maybe_crash_after_wal("update");
     if (!disk.write_page(rid.page_id, buf)) {
         return false;
     }
@@ -315,7 +311,6 @@ int update_via_linear_scan(const std::string& tab_name,
                 std::cout << "Error: Could not write recovery log for updated page " << page_id << ".\n";
                 continue;
             }
-            RecoveryManager::maybe_crash_after_wal("update");
             if (disk.write_page(page_id, buf)) {
                 page_tickets.push_back(ticket);
             }

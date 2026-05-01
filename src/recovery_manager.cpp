@@ -2,7 +2,6 @@
 
 #include <cstdio>
 #include <cstring>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -178,34 +177,6 @@ bool RecoveryManager::mark_page_applied(const RecoveryTicket& ticket) {
 
 bool RecoveryManager::mark_insert_applied(const RecoveryTicket& ticket) {
     return mark_page_applied(ticket);
-}
-
-void RecoveryManager::maybe_crash_after_wal(const char* operation_name) {
-    const char* mode = std::getenv("MINIDB_CRASH_AFTER_WAL");
-    if (mode == NULL || mode[0] == '\0') {
-        return;
-    }
-
-    std::string mode_str(mode);
-    if (mode_str != "1" &&
-        mode_str != "all" &&
-        mode_str != "insert" &&
-        mode_str != "update") {
-        return;
-    }
-
-    if (operation_name != NULL &&
-        mode_str != "1" &&
-        mode_str != "all" &&
-        mode_str != operation_name) {
-        return;
-    }
-
-    std::cerr << "\n[Recovery Demo] Simulated crash after WAL during "
-              << (operation_name == NULL ? "operation" : operation_name)
-              << ". Restart MiniDB normally to trigger REDO recovery.\n";
-    std::fflush(stderr);
-    std::_Exit(86);
 }
 
 bool RecoveryManager::recover_all_tables() {
