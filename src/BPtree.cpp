@@ -194,6 +194,36 @@ bool BPtree::remove_key(int key) {
     return false;  // key not found in leaf
 }
 
+bool BPtree::remove_key(int key) {
+    if (root_page_id_ == INVALID_PAGE_ID) return false;
+
+    uint32_t curr_id = root_page_id_;
+    BPtreeNode curr;
+    while (curr_id != INVALID_PAGE_ID) {
+        read_node(curr_id, curr);
+        if (curr.is_leaf) break;
+        int i = 0;
+        while (i < curr.num_keys && key >= curr.keys[i]) i++;
+        curr_id = curr.children[i];
+    }
+
+    if (curr_id == INVALID_PAGE_ID) return false;
+
+    for (int i = 0; i < curr.num_keys; ++i) {
+        if (curr.keys[i] == key) {
+            for (int j = i; j < curr.num_keys - 1; ++j) {
+                curr.keys[j] = curr.keys[j + 1];
+                curr.values[j] = curr.values[j + 1];
+            }
+            curr.num_keys--;
+            write_node(curr);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 int BPtree::insert_record(int key, int record_num) {
     if (search(key).page_id != INVALID_PAGE_ID) return BPTREE_INSERT_ERROR_EXIST;
     insert(key, RID(0, (uint16_t)record_num));
