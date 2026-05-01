@@ -1,11 +1,47 @@
 #include "file_handler.h"
 namespace fs = std::filesystem;
 
+namespace {
+
+fs::path resolve_project_root() {
+    std::error_code ec;
+
+    fs::path cwd = fs::current_path(ec);
+    if (!ec) {
+        if (fs::exists(cwd / "table") || fs::exists(cwd / "system") || fs::exists(cwd / "src")) {
+            return cwd;
+        }
+
+        if (cwd.filename() == "bin" && cwd.parent_path().filename() == "build") {
+            return cwd.parent_path().parent_path();
+        }
+    }
+
+    fs::path exe_path = fs::read_symlink("/proc/self/exe", ec);
+    if (!ec) {
+        fs::path exe_dir = exe_path.parent_path();
+        if (exe_dir.filename() == "bin" && exe_dir.parent_path().filename() == "build") {
+            return exe_dir.parent_path().parent_path();
+        }
+        return exe_dir;
+    }
+
+    return fs::path(".");
+}
+
+fs::path table_root() {
+    return resolve_project_root() / "table";
+}
+
+fs::path system_root() {
+    return resolve_project_root() / "system";
+}
+
+}
+
 // --- FSTREAM FUNCTIONS ---
 fstream_t open_file_fstream(const char* t_name ,std::ios::openmode mode){
-    fs::path file_path;
-    fs::path exe_dir = fs::canonical("/proc/self/exe").parent_path();
-    file_path = exe_dir.parent_path().parent_path() / "table";
+    fs::path file_path = table_root();
 
     if(!fs::exists(file_path)) fs::create_directories(file_path);
     file_path = file_path / t_name ;
@@ -26,9 +62,7 @@ fstream_t open_file_fstream(const char* t_name ,std::ios::openmode mode){
 }
 
 fstream_t open_file_read_fstream(const char* t_name ,std::ios::openmode mode){
-    fs::path file_path;
-    fs::path exe_dir = fs::canonical("/proc/self/exe").parent_path();
-    file_path = exe_dir.parent_path().parent_path() / "table" / t_name / "met";
+    fs::path file_path = table_root() / t_name / "met";
     
     if(!fs::exists(file_path)){
         return fstream_t(); 
@@ -114,10 +148,8 @@ struct table* fetch_meta_data(string name){
 
 void system_check() {
     try {
-        fs::path exe_path = fs::canonical("/proc/self/exe");
-        fs::path root_dir = exe_path.parent_path().parent_path().parent_path();
-        fs::path table_dir = root_dir / "table";
-        fs::path system_dir = root_dir / "system";
+        fs::path table_dir = table_root();
+        fs::path system_dir = system_root();
         fs::path table_list = table_dir / "table_list";
 
         if (!fs::exists(table_dir)) {

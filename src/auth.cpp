@@ -6,6 +6,7 @@
 #include "data_page.h"
 #include "tuple_serializer.h"
 #include "BPtree.h"
+#include "vacuum.h"
 #include <iostream>
 #include <random>
 #include <iomanip>
@@ -110,6 +111,11 @@ bool AuthManager::register_user(const std::string& username, const std::string& 
         target_page_id = data_disk.page_count() - 1;
         target_buffer = buffer_pool.fetch_page(target_page_id);
         page.load_from_buffer(target_buffer, STORAGE_PAGE_SIZE);
+        if (!page.can_store(tuple_data.size())) {
+            if (compact_page_buffer(target_buffer)) {
+                page.load_from_buffer(target_buffer, STORAGE_PAGE_SIZE);
+            }
+        }
         if (!page.can_store(tuple_data.size())) {
             buffer_pool.unpin_page(target_page_id, false);
             target_buffer = buffer_pool.new_page(target_page_id);
