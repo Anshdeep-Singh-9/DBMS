@@ -6,6 +6,7 @@
 #include "data_page.h"
 #include "recovery_manager.h"
 #include "tuple_serializer.h"
+#include "vacuum.h"
 #include <string>
 #include <vector>
 #include <iostream>
@@ -99,6 +100,16 @@ void insert_command(char tname[], const std::vector<TupleValue>& values, const s
             found_space = true;
             target_buffer = frame_data;
             break;
+        }
+
+        if (compact_page_buffer(frame_data)) {
+            page.load_from_buffer(frame_data, STORAGE_PAGE_SIZE);
+            if (page.can_store(tuple_data.size())) {
+                target_page_id = i;
+                found_space = true;
+                target_buffer = frame_data;
+                break;
+            }
         }
 
         buffer_pool.unpin_page(i, false);
@@ -214,6 +225,16 @@ void bulk_insert_command(char tname[], const std::vector<std::vector<TupleValue>
                     current_buffer = frame_data;
                     found_space = true;
                     break;
+                }
+
+                if (compact_page_buffer(frame_data)) {
+                    current_page.load_from_buffer(frame_data, STORAGE_PAGE_SIZE);
+                    if (current_page.can_store(tuple_data.size())) {
+                        current_page_id = i;
+                        current_buffer = frame_data;
+                        found_space = true;
+                        break;
+                    }
                 }
                 buffer_pool.unpin_page(i, false);
             }

@@ -1,53 +1,69 @@
 #include "vacuum.h"
-#include "storage_types.h"
-#include "data_page.h"
-#include <cstring> // Required for std::memcpy
 
-void compact_page(uint32_t page_id, DiskManager* disk) {
-    char old_buffer[STORAGE_PAGE_SIZE];
-    char new_buffer[STORAGE_PAGE_SIZE] = {0}; // The clean shadow page
+#include <cstring>
 
-    // 1. Fetch from the physical disk
-    if (!disk->read_page(page_id, old_buffer)) {
-        return; // Page doesn't exist or read failed
+bool compact_page_buffer(char* page_buffer) {
+    if (page_buffer == NULL) {
+        return false;
     }
 
-    // 2. Cast the raw bytes to a Header struct
+    char old_buffer[STORAGE_PAGE_SIZE];
+    char new_buffer[STORAGE_PAGE_SIZE] = {0};
+    std::memcpy(old_buffer, page_buffer, STORAGE_PAGE_SIZE);
+
     PageHeader* old_header = reinterpret_cast<PageHeader*>(old_buffer);
     PageHeader* new_header = reinterpret_cast<PageHeader*>(new_buffer);
 
-    // 3. Copy the header and the ENTIRE slot array (including dead tombstones)
-    // Your teammate's `free_start` pointer tracks the exact boundary where 
-    // the slot array ends. We can copy the header and slots in one elegant move!
-    std::memcpy(new_buffer, old_buffer, old_header->free_start);
+    if (old_header->free_start > STORAGE_PAGE_SIZE || old_header->free_end > STORAGE_PAGE_SIZE) {
+        return false;
+    }
 
-    // 4. Reset the tuple insertion pointer to the very bottom of the new page
+    std::memcpy(new_buffer, old_buffer, old_header->free_start);
     new_header->free_end = STORAGE_PAGE_SIZE;
 
-    // 5. Point to the start of the slot arrays
     SlotEntry* old_slots = reinterpret_cast<SlotEntry*>(old_buffer + sizeof(PageHeader));
     SlotEntry* new_slots = reinterpret_cast<SlotEntry*>(new_buffer + sizeof(PageHeader));
 
-    // 6. The Compaction Loop
+    bool changed = false;
+
     for (int i = 0; i < new_header->slot_count; i++) {
-        // If the slot is ALIVE (assuming length > 0 means it hasn't been deleted)
         if (new_slots[i].length > 0) {
-            
-            // Calculate new destination at the bottom of the new page
             new_header->free_end -= new_slots[i].length;
-            
-            // Copy the actual row data from the old page to the new destination
+
             std::memcpy(
-                new_buffer + new_header->free_end, // Destination
-                old_buffer + old_slots[i].offset,  // Source
-                new_slots[i].length                // How many bytes
+                new_buffer + new_header->free_end,
+                old_buffer + old_slots[i].offset,
+                new_slots[i].length
             );
 
-            // Update the slot directory to point to the new compacted location
+            if (new_slots[i].offset != new_header->free_end) {
+                changed = true;
+            }
+
             new_slots[i].offset = new_header->free_end;
+        } else if (old_slots[i].length == 0) {
+            changed = true;
         }
     }
 
-    // 7. Overwrite the fragmented disk page with the fully compacted one
-    disk->write_page(page_id, new_buffer);
+    if (changed) {
+        std::memcpy(page_buffer, new_buffer, STORAGE_PAGE_SIZE);
+    }
+
+    return changed;
+}
+
+void compact_page(uint32_t page_id, DiskManager* disk) {
+    if (disk == NULL) {
+        return;
+    }
+
+    char buffer[STORAGE_PAGE_SIZE];
+    if (!disk->read_page(page_id, buffer)) {
+        return;
+    }
+
+    if (compact_page_buffer(buffer)) {
+        disk->write_page(page_id, buffer);
+    }
 }

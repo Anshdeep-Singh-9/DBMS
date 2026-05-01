@@ -7,31 +7,10 @@
 #include "storage_types.h"
 #include "tuple_serializer.h"
 
-#include <cctype>
 #include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
-
-/*
- * DELETE FROM table WHERE col = val
- *
- * Path A — B+ Tree (WHERE on INT primary key):
- *   1. BPtree::search(pk) → RID
- *   2. Read that page → mark slot dead (slot.length = 0) → write page
- *   3. BPtree::remove_key(pk) → removes key from leaf so future inserts work
- *
- * Path B — Linear scan (WHERE on any other column):
- *   1. Iterate every page + slot → deserialize
- *   2. For each matching tuple:
- *       - Mark slot dead in page buffer
- *       - BPtree::remove_key(values[0].int_value)
- *   3. Write each dirty page once after its full scan
- *
- * "Dead" slot: slot.length == 0
- *   - DataPage::read_tuple() already returns false for these → naturally invisible
- *     to SELECT, display, and table_to_json without any further changes.
- */
 
 #define RESET  "\033[0m"
 #define BOLD   "\033[1m"
@@ -40,12 +19,10 @@
 #define YELLOW "\033[33m"
 #define CYAN   "\033[36m"
 
-// ---------------------------------------------------------------------------
-// Path A: B+ Tree lookup (WHERE on INT primary key)
-// ---------------------------------------------------------------------------
-static int delete_via_bptree(const std::string&               tab_name,
-                              const std::vector<ColumnSchema>& schema,
-                              const DeleteStatement&           stmt) {
+static int delete_via_bptree(const std::string& tab_name,
+                             const std::vector<ColumnSchema>& schema,
+                             const DeleteStatement& stmt) {
+    (void)schema;
     std::cout << CYAN << "\n[Delete Strategy: B+ Tree Lookup on Primary Key]" << RESET << "\n";
 
     int pk_value;
@@ -69,7 +46,6 @@ static int delete_via_bptree(const std::string&               tab_name,
         return 0;
     }
 
-    // Mark the slot as dead
     std::string data_path = "table/" + tab_name + "/data.dat";
     DiskManager disk(data_path);
     if (!disk.open_or_create()) {
@@ -84,14 +60,25 @@ static int delete_via_bptree(const std::string&               tab_name,
     }
 
     SlotEntry* slots = reinterpret_cast<SlotEntry*>(buf + sizeof(PageHeader));
-    slots[rid.slot_id].length = 0;   // dead slot — invisible to read_tuple()
+    slots[rid.slot_id].length = 0;
 
     if (!disk.write_page(rid.page_id, buf)) {
         std::cout << RED << "Error: Cannot write updated page." << RESET << "\n";
         return 0;
     }
 
-    // Remove the key from B+ Tree so the PK can be reused
+    bool page_empty = true;
+    PageHeader* header = reinterpret_cast<PageHeader*>(buf);
+    for (uint16_t i = 0; i < header->slot_count; ++i) {
+        if (slots[i].length > 0) {
+            page_empty = false;
+            break;
+        }
+    }
+    if (page_empty) {
+        disk.deallocate_page(rid.page_id);
+    }
+
     index.remove_key(pk_value);
 
     std::cout << GREEN << BOLD << "Deleted 1 row where "
@@ -99,13 +86,10 @@ static int delete_via_bptree(const std::string&               tab_name,
     return 1;
 }
 
-// ---------------------------------------------------------------------------
-// Path B: Linear scan (WHERE on any non-primary-key column)
-// ---------------------------------------------------------------------------
-static int delete_via_linear_scan(const std::string&               tab_name,
-                                   const std::vector<ColumnSchema>& schema,
-                                   const DeleteStatement&           stmt,
-                                   int                              where_col_idx) {
+static int delete_via_linear_scan(const std::string& tab_name,
+                                  const std::vector<ColumnSchema>& schema,
+                                  const DeleteStatement& stmt,
+                                  int where_col_idx) {
     std::cout << CYAN << "\n[Delete Strategy: Linear Scan]" << RESET << "\n";
 
     std::string data_path = "table/" + tab_name + "/data.dat";
@@ -115,7 +99,7 @@ static int delete_via_linear_scan(const std::string&               tab_name,
         return 0;
     }
 
-    BPtree index(tab_name.c_str());   // open index once for all removals
+    BPtree index(tab_name.c_str());
     int deleted_count = 0;
 
     for (uint32_t page_id = 0; page_id < disk.page_count(); ++page_id) {
@@ -129,12 +113,11 @@ static int delete_via_linear_scan(const std::string&               tab_name,
 
         for (uint16_t slot_id = 0; slot_id < dp.slot_count(); ++slot_id) {
             std::vector<char> old_bytes;
-            if (!dp.read_tuple(slot_id, old_bytes)) continue;  // skip already-dead slots
+            if (!dp.read_tuple(slot_id, old_bytes)) continue;
 
             std::vector<TupleValue> values;
             if (!TupleSerializer::deserialize(schema, old_bytes, values)) continue;
 
-            // Check WHERE predicate
             const TupleValue& cell = values[where_col_idx];
             bool matches = false;
             if (cell.type == STORAGE_COLUMN_INT) {
@@ -143,22 +126,33 @@ static int delete_via_linear_scan(const std::string&               tab_name,
             } else {
                 matches = (cell.string_value == stmt.where_value);
             }
+
             if (!matches) continue;
 
-            // Mark slot dead
             SlotEntry* slots = reinterpret_cast<SlotEntry*>(buf + sizeof(PageHeader));
             slots[slot_id].length = 0;
             page_dirty = true;
 
-            // Remove from B+ Tree (PK is always values[0], always INT)
             int pk_value = values[0].int_value;
             index.remove_key(pk_value);
-
             deleted_count++;
         }
 
         if (page_dirty) {
             disk.write_page(page_id, buf);
+
+            bool page_empty = true;
+            PageHeader* header = reinterpret_cast<PageHeader*>(buf);
+            SlotEntry* slots = reinterpret_cast<SlotEntry*>(buf + sizeof(PageHeader));
+            for (uint16_t i = 0; i < header->slot_count; ++i) {
+                if (slots[i].length > 0) {
+                    page_empty = false;
+                    break;
+                }
+            }
+            if (page_empty) {
+                disk.deallocate_page(page_id);
+            }
         }
     }
 
@@ -173,22 +167,17 @@ static int delete_via_linear_scan(const std::string&               tab_name,
     return deleted_count;
 }
 
-// ---------------------------------------------------------------------------
-// Public entry point
-// ---------------------------------------------------------------------------
 void execute_delete(const DeleteStatement& stmt) {
     char tab[MAX_NAME];
     strncpy(tab, stmt.table_name.c_str(), MAX_NAME - 1);
     tab[MAX_NAME - 1] = '\0';
 
-    // 1. Table must exist
     if (search_table(tab) == 0) {
         std::cout << RED << "Error: Table '" << stmt.table_name
                   << "' does not exist." << RESET << "\n";
         return;
     }
 
-    // 2. Load metadata
     table* meta = fetch_meta_data(stmt.table_name);
     if (meta == NULL) {
         std::cout << RED << "Error: Could not load metadata for '"
@@ -196,18 +185,21 @@ void execute_delete(const DeleteStatement& stmt) {
         return;
     }
 
-    // 3. Resolve WHERE column
     int where_col_idx = -1;
     for (int i = 0; i < meta->count; i++) {
-        if (stmt.where_column == meta->col[i].col_name) { where_col_idx = i; break; }
+        if (stmt.where_column == meta->col[i].col_name) {
+            where_col_idx = i;
+            break;
+        }
     }
+
     if (where_col_idx == -1) {
         std::cout << RED << "Error: Column '" << stmt.where_column
                   << "' does not exist in table '" << stmt.table_name << "'." << RESET << "\n";
-        delete meta; return;
+        delete meta;
+        return;
     }
 
-    // 4. Build schema
     std::vector<ColumnSchema> schema;
     for (int i = 0; i < meta->count; i++) {
         schema.emplace_back(
@@ -217,7 +209,6 @@ void execute_delete(const DeleteStatement& stmt) {
         );
     }
 
-    // 5. Route
     bool is_pk_where = (where_col_idx == 0 && meta->col[0].type == INT);
     if (is_pk_where) {
         delete_via_bptree(stmt.table_name, schema, stmt);

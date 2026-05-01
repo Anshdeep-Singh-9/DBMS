@@ -8,6 +8,7 @@
 #include "recovery_manager.h"
 #include "storage_types.h"
 #include "tuple_serializer.h"
+#include "vacuum.h"
 
 #include <cstring>
 #include <iostream>
@@ -42,6 +43,27 @@ RID insert_relocated_tuple(DiskManager& disk,
                 }
                 recovery_tickets.push_back(ticket);
                 return RID(pid, new_slot);
+            }
+        }
+
+        if (compact_page_buffer(pg)) {
+            dp.load_from_buffer(pg, STORAGE_PAGE_SIZE);
+            if (dp.can_store(new_bytes.size())) {
+                uint16_t new_slot;
+                if (dp.insert_tuple(new_bytes.data(), new_bytes.size(), new_slot)) {
+                    std::memcpy(pg, dp.data(), STORAGE_PAGE_SIZE);
+                    RecoveryTicket ticket =
+                        RecoveryManager::log_page_redo(tab_name, pid, new_slot, primary_key, pg, true);
+                    if (!ticket.valid) {
+                        return RID();
+                    }
+                    RecoveryManager::maybe_crash_after_wal("update");
+                    if (!disk.write_page(pid, pg)) {
+                        return RID();
+                    }
+                    recovery_tickets.push_back(ticket);
+                    return RID(pid, new_slot);
+                }
             }
         }
     }
