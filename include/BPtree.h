@@ -54,6 +54,7 @@ class BPtree {
     int get_record(int key);
     RID search(int key);
     bool update_rid(int key, RID new_rid);
+    bool remove_key(int key);   // marks key as deleted (shifts leaf entries)
     void print();
 
   private:

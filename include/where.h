@@ -3,6 +3,7 @@
 
 #include "declaration.h"
 #include "tuple_serializer.h"
+#include "query_result.h"
 #include <string>
 #include <vector>
 
@@ -39,9 +40,11 @@ struct WhereClause {
  *   tab_name    -> table to query
  *   target_cols -> columns to print ("*" means all)
  *   where_clause -> parsed WHERE predicate
+ *   res          -> optional QueryResult to store results
  */
 extern void execute_select_where(const std::string &tab_name,
                                  const std::vector<std::string> &target_cols,
-                                 const WhereClause &where_clause);
+                                 const WhereClause &where_clause,
+                                 QueryResult* res = nullptr);
 
 #endif

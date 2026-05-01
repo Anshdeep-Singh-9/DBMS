@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "storage_types.h"
 
@@ -39,6 +40,10 @@ class DiskManager {
     void close();
 
     uint32_t allocate_page();
+    
+    // Accepts an empty page ID and adds it to the RAM-based recycle bin
+    void deallocate_page(uint32_t page_id);
+
     bool read_page(uint32_t page_id, char* buffer);
     bool write_page(uint32_t page_id, const char* buffer);
 
@@ -50,6 +55,9 @@ class DiskManager {
     std::string path_;
     std::size_t page_size_;
     std::fstream file_;
+
+    // Tracks recycled pages that are completely empty
+    std::vector<uint32_t> free_pages_;
 
     uint32_t page_count_unchecked();
     std::streamoff page_offset(uint32_t page_id) const;
