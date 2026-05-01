@@ -67,6 +67,7 @@ class RecoveryManager {
 
     static bool recover_all_tables();
     static bool recover_table(const std::string& table_name);
+    static void maybe_crash_after_wal(const char* operation);
 };
 
 #endif

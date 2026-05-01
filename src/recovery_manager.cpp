@@ -1,5 +1,6 @@
 #include "recovery_manager.h"
 
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -250,4 +251,14 @@ bool RecoveryManager::recover_table(const std::string& table_name) {
     std::ofstream truncate_file(wal_path.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
     truncate_file.close();
     return true;
+}
+
+void RecoveryManager::maybe_crash_after_wal(const char* operation) {
+    const char* failpoint = std::getenv("MINIDB_CRASH_AFTER_WAL");
+    if (failpoint == NULL || operation == NULL) {
+        return;
+    }
+    if (std::string(failpoint) == operation) {
+        std::abort();
+    }
 }
