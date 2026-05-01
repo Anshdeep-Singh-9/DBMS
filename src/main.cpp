@@ -97,12 +97,17 @@ void help() {
     cout << GREEN << "CREATE TABLE students (id INT, name VARCHAR(50), dept VARCHAR(20));\n" << RESET;
     cout << GREEN << "INSERT INTO students VALUES (1, \"Aditya\", \"CSE\");\n" << RESET;
     cout << GREEN << "SELECT * FROM Students WHERE ID = 1;\n" << RESET;
+    cout << GREEN << "SELECT s.name, d.hod FROM students JOIN departments ON students.dept = departments.code;\n" << RESET;
+    cout << GREEN << "SELECT s.name, d.hod FROM students LEFT JOIN departments ON students.dept = departments.code;\n" << RESET;
     cout << GREEN << "SELECT * FROM Students WHERE Dept = CSE;\n" << RESET;
     cout << GREEN << "UPDATE Students SET Dept = ECE WHERE ID = 1;\n" << RESET;
     cout << GREEN << "UPDATE Students SET Dept = ECE WHERE Name = Anshdeep Singh;\n" << RESET;
     cout << GREEN << "DELETE FROM Students WHERE ID = 1;\n" << RESET;
     cout << GREEN << "DELETE FROM Students WHERE Dept = CSE;\n" << RESET;
     cout << GREEN << "DROP TABLE Students;\n" << RESET;
+    cout << GREEN << "BEGIN;\n" << RESET;
+    cout << GREEN << "COMMIT;\n" << RESET;
+    cout << GREEN << "ROLLBACK;\n" << RESET;
 
     cout << "\n" << BOLD << "Notes\n" << RESET;
     print_small_line();
@@ -180,10 +185,15 @@ void print_query_console_syntax() {
     cout << GREEN << "SELECT * FROM students;\n" << RESET;
     cout << GREEN << "SELECT name, dept FROM students;\n" << RESET;
     cout << GREEN << "SELECT * FROM students WHERE id = 1;\n" << RESET;
+    cout << GREEN << "SELECT s.name, d.hod FROM students JOIN departments ON students.dept = departments.code;\n" << RESET;
+    cout << GREEN << "SELECT s.name, d.hod FROM students LEFT JOIN departments ON students.dept = departments.code;\n" << RESET;
     cout << GREEN << "UPDATE students SET dept = ECE WHERE id = 1;\n" << RESET;
     cout << GREEN << "DELETE FROM students WHERE id = 1;\n" << RESET;
     cout << GREEN << "DELETE FROM students WHERE dept = CSE;\n" << RESET;
     cout << GREEN << "DROP TABLE students;\n" << RESET;
+    cout << GREEN << "BEGIN;\n" << RESET;
+    cout << GREEN << "COMMIT;\n" << RESET;
+    cout << GREEN << "ROLLBACK;\n" << RESET;
 
     print_small_line();
 }
