@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  minidb-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: minidb-api
+    ports:
+      - "18080:18080"
+    volumes:
+      - ./docker-data/table:/app/table
+      - ./docker-data/system:/app/system
+    restart: unless-stopped
