@@ -203,6 +203,302 @@ static bool load_all_rows_using_buffer_pool(const std::string& tab_name,
     return true;
 }
 
+static int find_column_index(const table* meta, const std::string& col_name) {
+    if (meta == NULL) return -1;
+    for (int i = 0; i < meta->count; ++i) {
+        if (col_name == meta->col[i].col_name) return i;
+    }
+    return -1;
+}
+
+static bool parse_qualified_column(const std::string& token,
+                                   std::string& table_name,
+                                   std::string& column_name) {
+    std::size_t dot = token.find('.');
+    if (dot == std::string::npos || dot == 0 || dot + 1 >= token.size()) {
+        return false;
+    }
+    table_name = token.substr(0, dot);
+    column_name = token.substr(dot + 1);
+    return !table_name.empty() && !column_name.empty();
+}
+
+static bool tuple_values_equal(const TupleValue& a, const TupleValue& b) {
+    if (a.type == STORAGE_COLUMN_INT && b.type == STORAGE_COLUMN_INT) {
+        return a.int_value == b.int_value;
+    }
+    if (a.type == STORAGE_COLUMN_VARCHAR && b.type == STORAGE_COLUMN_VARCHAR) {
+        return a.string_value == b.string_value;
+    }
+    if (a.type == STORAGE_COLUMN_INT && b.type == STORAGE_COLUMN_VARCHAR) {
+        return std::to_string(a.int_value) == b.string_value;
+    }
+    if (a.type == STORAGE_COLUMN_VARCHAR && b.type == STORAGE_COLUMN_INT) {
+        return a.string_value == std::to_string(b.int_value);
+    }
+    return false;
+}
+
+static bool execute_select_join_nested(const std::vector<std::string>& target_cols,
+                                       const std::string& left_table,
+                                       const std::string& right_table,
+                                       const std::string& left_on,
+                                       const std::string& right_on,
+                                       bool left_join,
+                                       bool where_present,
+                                       const std::string& where_column,
+                                       const std::string& where_value,
+                                       QueryResult* res) {
+    char left_tab[MAX_NAME];
+    char right_tab[MAX_NAME];
+    strncpy(left_tab, left_table.c_str(), MAX_NAME - 1);
+    left_tab[MAX_NAME - 1] = '\0';
+    strncpy(right_tab, right_table.c_str(), MAX_NAME - 1);
+    right_tab[MAX_NAME - 1] = '\0';
+
+    if (search_table(left_tab) == 0 || search_table(right_tab) == 0) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: One or both JOIN tables do not exist.";
+        }
+        std::cout << "Error: One or both JOIN tables do not exist.\n";
+        return false;
+    }
+
+    table* left_meta = fetch_meta_data(left_table);
+    table* right_meta = fetch_meta_data(right_table);
+    if (left_meta == NULL || right_meta == NULL) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: Could not load JOIN metadata.";
+        }
+        std::cout << "Error: Could not load JOIN metadata.\n";
+        delete left_meta;
+        delete right_meta;
+        return false;
+    }
+
+    std::vector<ColumnSchema> left_schema;
+    std::vector<ColumnSchema> right_schema;
+    build_schema_from_meta(left_meta, left_schema);
+    build_schema_from_meta(right_meta, right_schema);
+
+    std::string left_on_table, left_on_col, right_on_table, right_on_col;
+    if (!parse_qualified_column(left_on, left_on_table, left_on_col) ||
+        !parse_qualified_column(right_on, right_on_table, right_on_col)) {
+        std::cout << "Syntax Error: JOIN ON needs qualified columns like a.id = b.id\n";
+        delete left_meta;
+        delete right_meta;
+        return false;
+    }
+
+    if (left_on_table != left_table || right_on_table != right_table) {
+        std::cout << "Syntax Error: JOIN ON columns must match table names in FROM/JOIN.\n";
+        delete left_meta;
+        delete right_meta;
+        return false;
+    }
+
+    int left_on_idx = find_column_index(left_meta, left_on_col);
+    int right_on_idx = find_column_index(right_meta, right_on_col);
+    if (left_on_idx < 0 || right_on_idx < 0) {
+        std::cout << "Error: JOIN ON column not found in one of the tables.\n";
+        delete left_meta;
+        delete right_meta;
+        return false;
+    }
+
+    std::vector<std::vector<TupleValue>> left_rows;
+    std::vector<std::vector<TupleValue>> right_rows;
+    if (!load_all_rows_using_buffer_pool(left_table, left_schema, left_rows) ||
+        !load_all_rows_using_buffer_pool(right_table, right_schema, right_rows)) {
+        delete left_meta;
+        delete right_meta;
+        return false;
+    }
+
+    std::vector<ColumnSchema> output_schema;
+    std::vector<std::pair<int, int> > projections; // 0=left,1=right ; col idx
+    bool select_all = (target_cols.size() == 1 && target_cols[0] == "*");
+
+    int where_side = -1;
+    int where_idx = -1;
+    if (where_present) {
+        std::string wt, wc;
+        if (parse_qualified_column(where_column, wt, wc)) {
+            if (wt == left_table) {
+                where_side = 0;
+                where_idx = find_column_index(left_meta, wc);
+            } else if (wt == right_table) {
+                where_side = 1;
+                where_idx = find_column_index(right_meta, wc);
+            }
+        } else {
+            int li = find_column_index(left_meta, where_column);
+            int ri = find_column_index(right_meta, where_column);
+            if (li >= 0 && ri >= 0) {
+                std::cout << "Error: Ambiguous WHERE column '" << where_column
+                          << "'. Use qualified name.\n";
+                delete left_meta;
+                delete right_meta;
+                return false;
+            }
+            if (li >= 0) {
+                where_side = 0;
+                where_idx = li;
+            } else if (ri >= 0) {
+                where_side = 1;
+                where_idx = ri;
+            }
+        }
+
+        if (where_idx < 0) {
+            std::cout << "Error: WHERE column not found in JOIN tables.\n";
+            delete left_meta;
+            delete right_meta;
+            return false;
+        }
+    }
+
+    if (select_all) {
+        for (int i = 0; i < left_meta->count; ++i) {
+            ColumnSchema col = left_schema[i];
+            col.name = left_table + "." + col.name;
+            output_schema.push_back(col);
+            projections.push_back(std::make_pair(0, i));
+        }
+        for (int i = 0; i < right_meta->count; ++i) {
+            ColumnSchema col = right_schema[i];
+            col.name = right_table + "." + col.name;
+            output_schema.push_back(col);
+            projections.push_back(std::make_pair(1, i));
+        }
+    } else {
+        for (std::size_t i = 0; i < target_cols.size(); ++i) {
+            std::string tname, cname;
+            if (!parse_qualified_column(target_cols[i], tname, cname)) {
+                std::cout << "Error: In JOIN select list, use qualified columns like table.column\n";
+                delete left_meta;
+                delete right_meta;
+                return false;
+            }
+
+            if (tname == left_table) {
+                int idx = find_column_index(left_meta, cname);
+                if (idx < 0) {
+                    std::cout << "Error: Column " << target_cols[i] << " not found.\n";
+                    delete left_meta;
+                    delete right_meta;
+                    return false;
+                }
+                ColumnSchema col = left_schema[idx];
+                col.name = target_cols[i];
+                output_schema.push_back(col);
+                projections.push_back(std::make_pair(0, idx));
+            } else if (tname == right_table) {
+                int idx = find_column_index(right_meta, cname);
+                if (idx < 0) {
+                    std::cout << "Error: Column " << target_cols[i] << " not found.\n";
+                    delete left_meta;
+                    delete right_meta;
+                    return false;
+                }
+                ColumnSchema col = right_schema[idx];
+                col.name = target_cols[i];
+                output_schema.push_back(col);
+                projections.push_back(std::make_pair(1, idx));
+            } else {
+                std::cout << "Error: Unknown table prefix in " << target_cols[i] << "\n";
+                delete left_meta;
+                delete right_meta;
+                return false;
+            }
+        }
+    }
+
+    std::vector<std::vector<TupleValue>> output_rows;
+    for (std::size_t i = 0; i < left_rows.size(); ++i) {
+        bool matched_any = false;
+        for (std::size_t j = 0; j < right_rows.size(); ++j) {
+            if (!tuple_values_equal(left_rows[i][left_on_idx], right_rows[j][right_on_idx])) {
+                continue;
+            }
+
+            if (where_present) {
+                TupleValue expected = TupleValue::FromVarchar(where_value);
+                if (where_side == 0 && left_rows[i][where_idx].type == STORAGE_COLUMN_INT) {
+                    try {
+                        expected = TupleValue::FromInt(std::stoi(where_value));
+                    } catch (...) {
+                        continue;
+                    }
+                }
+                if (where_side == 1 && right_rows[j][where_idx].type == STORAGE_COLUMN_INT) {
+                    try {
+                        expected = TupleValue::FromInt(std::stoi(where_value));
+                    } catch (...) {
+                        continue;
+                    }
+                }
+
+                bool pass = (where_side == 0)
+                                ? tuple_values_equal(left_rows[i][where_idx], expected)
+                                : tuple_values_equal(right_rows[j][where_idx], expected);
+                if (!pass) continue;
+            }
+
+            std::vector<TupleValue> out;
+            for (std::size_t p = 0; p < projections.size(); ++p) {
+                if (projections[p].first == 0) out.push_back(left_rows[i][projections[p].second]);
+                else out.push_back(right_rows[j][projections[p].second]);
+            }
+            output_rows.push_back(out);
+            matched_any = true;
+        }
+
+        if (left_join && !matched_any) {
+            if (where_present && where_side == 0) {
+                TupleValue expected = TupleValue::FromVarchar(where_value);
+                if (left_rows[i][where_idx].type == STORAGE_COLUMN_INT) {
+                    try {
+                        expected = TupleValue::FromInt(std::stoi(where_value));
+                    } catch (...) {
+                        continue;
+                    }
+                }
+                if (!tuple_values_equal(left_rows[i][where_idx], expected)) continue;
+            } else if (where_present && where_side == 1) {
+                continue;
+            }
+
+            std::vector<TupleValue> out;
+            for (std::size_t p = 0; p < projections.size(); ++p) {
+                if (projections[p].first == 0) {
+                    out.push_back(left_rows[i][projections[p].second]);
+                } else {
+                    const ColumnSchema& col = right_schema[projections[p].second];
+                    if (col.type == STORAGE_COLUMN_INT) out.push_back(TupleValue::FromInt(0));
+                    else out.push_back(TupleValue::FromVarchar(""));
+                }
+            }
+            output_rows.push_back(out);
+        }
+    }
+
+    if (res) {
+        res->is_select = true;
+        res->schema = output_schema;
+        res->rows = output_rows;
+        res->strategy = "Nested Loop Join";
+    }
+
+    print_table(output_schema, output_rows);
+
+    delete left_meta;
+    delete right_meta;
+    return true;
+}
+
 void display() {
     char tab[MAX_NAME];
 
@@ -435,6 +731,71 @@ void process_select(std::vector<std::string>& token_vector, QueryResult* res) {
     }
 
     table_name = token_vector[from_index + 1];
+
+    int join_kw_index = from_index + 2;
+    bool left_join = false;
+    if ((int)token_vector.size() > join_kw_index &&
+        (token_vector[join_kw_index] == "left" || token_vector[join_kw_index] == "inner")) {
+        left_join = (token_vector[join_kw_index] == "left");
+        join_kw_index++;
+    }
+
+    if ((int)token_vector.size() > join_kw_index && token_vector[join_kw_index] == "join") {
+        if ((int)token_vector.size() < join_kw_index + 6) {
+            std::cout << "Syntax Error: Incomplete JOIN.\n";
+            std::cout << "Use: SELECT ... FROM t1 JOIN t2 ON t1.col = t2.col;\n";
+            return;
+        }
+
+        std::string right_table = token_vector[join_kw_index + 1];
+        if (token_vector[join_kw_index + 2] != "on") {
+            std::cout << "Syntax Error: Missing ON in JOIN clause.\n";
+            return;
+        }
+
+        std::string left_on = token_vector[join_kw_index + 3];
+        std::string op = token_vector[join_kw_index + 4];
+        std::string right_on = token_vector[join_kw_index + 5];
+
+        if (op != "=") {
+            std::cout << "Syntax Error: Only '=' is supported in JOIN ON.\n";
+            return;
+        }
+
+        bool where_present = false;
+        std::string where_col, where_val;
+        int where_index = join_kw_index + 6;
+        if ((int)token_vector.size() > where_index) {
+            if (token_vector[where_index] != "where") {
+                std::cout << "Syntax Error: Only WHERE is allowed after JOIN ON clause.\n";
+                return;
+            }
+            if ((int)token_vector.size() < where_index + 4) {
+                std::cout << "Syntax Error: Incomplete WHERE after JOIN.\n";
+                return;
+            }
+            if (token_vector[where_index + 2] != "=") {
+                std::cout << "Syntax Error: Only '=' is supported in WHERE.\n";
+                return;
+            }
+
+            where_present = true;
+            where_col = token_vector[where_index + 1];
+            for (int i = where_index + 3; i < (int)token_vector.size(); ++i) {
+                if (!where_val.empty()) where_val += " ";
+                where_val += token_vector[i];
+            }
+            if (where_val.empty()) {
+                std::cout << "Syntax Error: Missing WHERE value.\n";
+                return;
+            }
+        }
+
+        execute_select_join_nested(target_cols, table_name, right_table, left_on, right_on,
+                                   left_join,
+                                   where_present, where_col, where_val, res);
+        return;
+    }
 
     WhereClause where_clause;
     int where_start = from_index + 2;

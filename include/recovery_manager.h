@@ -49,6 +49,10 @@ struct RecoveryTicket {
 
 class RecoveryManager {
   public:
+    static void set_transaction_context(std::uint64_t txn_id, bool active);
+    static bool commit_transaction(std::uint64_t txn_id);
+    static bool abort_transaction(std::uint64_t txn_id);
+
     static RecoveryTicket log_page_redo(const std::string& table_name,
                                         uint32_t page_id,
                                         uint16_t slot_id,

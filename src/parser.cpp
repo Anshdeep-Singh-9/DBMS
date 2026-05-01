@@ -7,6 +7,8 @@
 #include "update.h"
 #include "delete.h"
 #include "query_result.h"
+#include "transaction_manager.h"
+#include "recovery_manager.h"
 
 #include <cstring>
 #include <iostream>
@@ -15,6 +17,7 @@
 #include <vector>
 #include <fstream>
 #include <filesystem>
+#include <cstdint>
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -111,7 +114,8 @@ void push_select_token(vector<string>& token_vector, string token) {
 
     string lower = to_lower_string(token);
 
-    if (lower == "select" || lower == "from" || lower == "where") {
+    if (lower == "select" || lower == "from" || lower == "where" ||
+        lower == "join" || lower == "on" || lower == "left" || lower == "inner") {
         token_vector.push_back(lower);
     }
     else {
@@ -511,10 +515,15 @@ void print_query_syntax_help() {
     cout << "SELECT * FROM students;\n";
     cout << "SELECT name, dept FROM students;\n";
     cout << "SELECT * FROM students WHERE id = 1;\n";
+    cout << "SELECT students.name, departments.hod FROM students JOIN departments ON students.dept = departments.code;\n";
+    cout << "SELECT students.name, departments.hod FROM students LEFT JOIN departments ON students.dept = departments.code;\n";
     cout << "UPDATE students SET dept = ECE WHERE id = 1;\n";
     cout << "DELETE FROM students WHERE id = 1;\n";
     cout << "DELETE FROM students WHERE dept = CSE;\n";
     cout << "DROP TABLE students;\n";
+    cout << "BEGIN;\n";
+    cout << "COMMIT;\n";
+    cout << "ROLLBACK;\n";
     cout << "--------------------------------------------------\n\n";
 }
 void execute_query_string(string input_query, QueryResult* res) {
@@ -541,6 +550,49 @@ void execute_query_string(string input_query, QueryResult* res) {
 
     if (token_temp == "select") {
         tokenize_select(final_query, res);
+    }
+    else if (token_temp == "begin") {
+        if (TransactionManager::begin()) {
+            RecoveryManager::set_transaction_context(TransactionManager::current_txn_id(), true);
+            cout << "Transaction started.\n";
+            if (res) res->message = "Transaction started.";
+        } else {
+            cout << "Transaction error: " << TransactionManager::last_error() << "\n";
+            if (res) {
+                res->success = false;
+                res->message = TransactionManager::last_error();
+            }
+        }
+    }
+    else if (token_temp == "commit") {
+        std::uint64_t txn_id = TransactionManager::current_txn_id();
+        if (TransactionManager::commit()) {
+            RecoveryManager::commit_transaction(txn_id);
+            RecoveryManager::set_transaction_context(0, false);
+            cout << "Transaction committed.\n";
+            if (res) res->message = "Transaction committed.";
+        } else {
+            cout << "Transaction error: " << TransactionManager::last_error() << "\n";
+            if (res) {
+                res->success = false;
+                res->message = TransactionManager::last_error();
+            }
+        }
+    }
+    else if (token_temp == "rollback") {
+        std::uint64_t txn_id = TransactionManager::current_txn_id();
+        if (TransactionManager::rollback()) {
+            RecoveryManager::abort_transaction(txn_id);
+            RecoveryManager::set_transaction_context(0, false);
+            cout << "Transaction rolled back.\n";
+            if (res) res->message = "Transaction rolled back.";
+        } else {
+            cout << "Transaction error: " << TransactionManager::last_error() << "\n";
+            if (res) {
+                res->success = false;
+                res->message = TransactionManager::last_error();
+            }
+        }
     }
     else if (token_temp == "create") {
         tokenize_create(final_query);
