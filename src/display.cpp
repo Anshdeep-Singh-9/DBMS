@@ -304,18 +304,26 @@ void display_meta_data() {
 }
 
 void execute_select(const std::string& tab_name,
-                    const std::vector<std::string>& target_cols) {
+                    const std::vector<std::string>& target_cols, QueryResult* res) {
     char tab[MAX_NAME];
     strncpy(tab, tab_name.c_str(), MAX_NAME - 1);
     tab[MAX_NAME - 1] = '\0';
 
     if (search_table(tab) == 0) {
+        if (res) {
+            res->success = false;
+            res->message = "Table \"" + tab_name + "\" does not exist.";
+        }
         std::cout << "\nTable \"" << tab_name << "\" does not exist.\n";
         return;
     }
 
     table* meta = fetch_meta_data(tab_name);
     if (meta == NULL) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: Could not load table metadata.";
+        }
         std::cout << "Error: Could not load table metadata.\n";
         return;
     }
@@ -340,6 +348,10 @@ void execute_select(const std::string& tab_name,
             }
 
             if (!found) {
+                if (res) {
+                    res->success = false;
+                    res->message = "Error: Column '" + col_name + "' does not exist in table.";
+                }
                 std::cout << "Error: Column '" << col_name << "' does not exist in table.\n";
                 delete meta;
                 return;
@@ -359,6 +371,10 @@ void execute_select(const std::string& tab_name,
     std::vector<std::vector<TupleValue>> all_rows;
 
     if (!load_all_rows_using_buffer_pool(tab_name, full_schema, all_rows)) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: Failed to load rows.";
+        }
         delete meta;
         return;
     }
@@ -375,12 +391,23 @@ void execute_select(const std::string& tab_name,
         output_rows.push_back(selected_row);
     }
 
+    if (res) {
+        res->is_select = true;
+        res->schema = output_schema;
+        res->rows = output_rows;
+        res->strategy = "Linear Scan (No WHERE clause)";
+    }
+
     print_table(output_schema, output_rows);
 
     delete meta;
 }
-void process_select(std::vector<std::string>& token_vector) {
+void process_select(std::vector<std::string>& token_vector, QueryResult* res) {
     if (token_vector.size() < 4 || token_vector[0] != "select") {
+        if (res) {
+            res->success = false;
+            res->message = "Syntax Error: Invalid SELECT statement.";
+        }
         std::cout << "Syntax Error: Invalid SELECT statement.\n";
         return;
     }
@@ -399,6 +426,10 @@ void process_select(std::vector<std::string>& token_vector) {
     }
 
     if (from_index == -1 || (int)token_vector.size() <= from_index + 1) {
+        if (res) {
+            res->success = false;
+            res->message = "Syntax Error: Missing FROM clause or table name.";
+        }
         std::cout << "Syntax Error: Missing FROM clause or table name.\n";
         return;
     }
@@ -412,6 +443,10 @@ void process_select(std::vector<std::string>& token_vector) {
         token_vector[where_start] == "where") {
 
         if ((int)token_vector.size() < where_start + 4) {
+            if (res) {
+                res->success = false;
+                res->message = "Syntax Error: Incomplete WHERE clause.";
+            }
             std::cout << "Syntax Error: Incomplete WHERE clause.\n";
             std::cout << "Usage: WHERE <column> = <value>\n";
             return;
@@ -420,6 +455,10 @@ void process_select(std::vector<std::string>& token_vector) {
         std::string op = token_vector[where_start + 2];
 
         if (op != "=") {
+            if (res) {
+                res->success = false;
+                res->message = "Syntax Error: Only '=' is supported in WHERE clause.";
+            }
             std::cout << "Syntax Error: Only '=' is supported in WHERE clause.\n";
             return;
         }
@@ -439,14 +478,18 @@ void process_select(std::vector<std::string>& token_vector) {
         }
 
         if (where_clause.value.empty()) {
+            if (res) {
+                res->success = false;
+                res->message = "Syntax Error: Missing value in WHERE clause.";
+            }
             std::cout << "Syntax Error: Missing value in WHERE clause.\n";
             return;
         }
     }
 
     if (where_clause.present) {
-        execute_select_where(table_name, target_cols, where_clause);
+        execute_select_where(table_name, target_cols, where_clause, res);
     } else {
-        execute_select(table_name, target_cols);
+        execute_select(table_name, target_cols, res);
     }
 }

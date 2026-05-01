@@ -120,7 +120,8 @@ static void search_via_bptree(const std::string& tab_name,
                               const std::vector<ColumnSchema>& schema,
                               const std::vector<int>& col_indices_to_print,
                               const std::vector<ColumnSchema>& output_schema,
-                              const WhereClause& where) {
+                              const WhereClause& where,
+                              QueryResult* res) {
     std::cout << "\n[Search Strategy: B+ Tree Point Lookup on Primary Key]\n";
 
     int pk_value;
@@ -128,6 +129,10 @@ static void search_via_bptree(const std::string& tab_name,
     try {
         pk_value = std::stoi(remove_quotes_local(where.value));
     } catch (...) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: WHERE value '" + where.value + "' cannot be parsed as INT";
+        }
         std::cout << "Error: WHERE value '" << where.value
                   << "' cannot be parsed as INT for primary key column '"
                   << where.column << "'.\n";
@@ -144,6 +149,10 @@ static void search_via_bptree(const std::string& tab_name,
 
         DiskManager data_disk(data_path);
         if (!data_disk.open_or_create()) {
+            if (res) {
+                res->success = false;
+                res->message = "Error: Could not open data file.";
+            }
             std::cout << "Error: Could not open data file.\n";
             return;
         }
@@ -151,6 +160,10 @@ static void search_via_bptree(const std::string& tab_name,
         BufferPoolManager buffer_pool(4, &data_disk);
         char *page_buffer = buffer_pool.fetch_page(rid.page_id);
         if (page_buffer == NULL) {
+            if (res) {
+                res->success = false;
+                res->message = "Error: Could not read page.";
+            }
             std::cout << "Error: Could not read page " << rid.page_id << ".\n";
             return;
         }
@@ -161,6 +174,10 @@ static void search_via_bptree(const std::string& tab_name,
         std::vector<char> tuple_data;
 
         if (!page.read_tuple(rid.slot_id, tuple_data)) {
+            if (res) {
+                res->success = false;
+                res->message = "Error: Could not read slot.";
+            }
             std::cout << "Error: Could not read slot " << rid.slot_id << " from page "
                       << rid.page_id << ".\n";
             buffer_pool.unpin_page(rid.page_id, false);
@@ -170,6 +187,10 @@ static void search_via_bptree(const std::string& tab_name,
         std::vector<TupleValue> values;
 
         if (!TupleSerializer::deserialize(schema, tuple_data, values)) {
+            if (res) {
+                res->success = false;
+                res->message = "Error: Failed to deserialize tuple.";
+            }
             std::cout << "Error: Failed to deserialize tuple.\n";
             buffer_pool.unpin_page(rid.page_id, false);
             return;
@@ -177,6 +198,13 @@ static void search_via_bptree(const std::string& tab_name,
 
         output_rows.push_back(project_row(values, col_indices_to_print));
         buffer_pool.unpin_page(rid.page_id, false);
+    }
+
+    if (res) {
+        res->is_select = true;
+        res->schema = output_schema;
+        res->rows = output_rows;
+        res->strategy = "B+ Tree Point Lookup";
     }
 
     print_result_table(output_schema, output_rows);
@@ -187,13 +215,18 @@ static void search_via_linear_scan(const std::string& tab_name,
                                    const std::vector<int>& col_indices_to_print,
                                    const std::vector<ColumnSchema>& output_schema,
                                    const WhereClause& where,
-                                   int where_col_idx) {
+                                   int where_col_idx,
+                                   QueryResult* res) {
     std::cout << "\n[Search Strategy: Linear Scan]\n";
 
     std::string data_path = "table/" + tab_name + "/data.dat";
 
     DiskManager data_disk(data_path);
     if (!data_disk.open_or_create()) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: Could not open data file.";
+        }
         std::cout << "Error: Could not open data file.\n";
         return;
     }
@@ -232,17 +265,29 @@ static void search_via_linear_scan(const std::string& tab_name,
         buffer_pool.unpin_page(i, false);
     }
 
+    if (res) {
+        res->is_select = true;
+        res->schema = output_schema;
+        res->rows = output_rows;
+        res->strategy = "Linear Scan";
+    }
+
     print_result_table(output_schema, output_rows);
 }
 
 void execute_select_where(const std::string& tab_name,
                           const std::vector<std::string>& target_cols,
-                          const WhereClause& where) {
+                          const WhereClause& where,
+                          QueryResult* res) {
     char tab[MAX_NAME];
     strncpy(tab, tab_name.c_str(), MAX_NAME - 1);
     tab[MAX_NAME - 1] = '\0';
 
     if (search_table(tab) == 0) {
+        if (res) {
+            res->success = false;
+            res->message = "Table \"" + tab_name + "\" does not exist.";
+        }
         std::cout << "\nTable \"" << tab_name << "\" does not exist.\n";
         return;
     }
@@ -250,6 +295,10 @@ void execute_select_where(const std::string& tab_name,
     table* meta = fetch_meta_data(tab_name);
 
     if (meta == NULL) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: Could not load table metadata.";
+        }
         std::cout << "Error: Could not load table metadata.\n";
         return;
     }
@@ -264,6 +313,10 @@ void execute_select_where(const std::string& tab_name,
     }
 
     if (where_col_idx == -1) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: Column '" + where.column + "' does not exist.";
+        }
         std::cout << "Error: Column '" << where.column
                   << "' does not exist in table '" << tab_name << "'.\n";
         delete meta;
@@ -290,6 +343,10 @@ void execute_select_where(const std::string& tab_name,
             }
 
             if (!found) {
+                if (res) {
+                    res->success = false;
+                    res->message = "Error: Column '" + t_col + "' does not exist.";
+                }
                 std::cout << "Error: Column '" << t_col << "' does not exist.\n";
                 delete meta;
                 return;
@@ -317,10 +374,10 @@ void execute_select_where(const std::string& tab_name,
     bool pk_is_int = (meta->col[0].type == INT);
 
     if (is_pk_column && pk_is_int) {
-        search_via_bptree(tab_name, schema, col_indices_to_print, output_schema, where);
+        search_via_bptree(tab_name, schema, col_indices_to_print, output_schema, where, res);
     } else {
         search_via_linear_scan(tab_name, schema, col_indices_to_print,
-                               output_schema, where, where_col_idx);
+                               output_schema, where, where_col_idx, res);
     }
 
     delete meta;

@@ -19,7 +19,6 @@
 using namespace std;
 
 void system_check();
-void execute_query_string(string input_query);
 
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"

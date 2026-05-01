@@ -5,6 +5,7 @@
 #include "tuple_serializer.h"
 #include "update.h"
 #include "delete.h"
+#include "query_result.h"
 
 #include <cstring>
 #include <iostream>
@@ -117,7 +118,7 @@ void push_select_token(vector<string>& token_vector, string token) {
     }
 }
 
-void tokenize_select(char query[]) {
+void tokenize_select(char query[], QueryResult* res = nullptr) {
     vector<string> token_vector;
     string current_token = "";
     bool in_single = false;
@@ -148,7 +149,7 @@ void tokenize_select(char query[]) {
 
     push_select_token(token_vector, current_token);
 
-    process_select(token_vector);
+    process_select(token_vector, res);
 }
 
 void tokenize_create(char query[]) {
@@ -520,10 +521,14 @@ void tokenize_delete(char query[]) {
     execute_delete(stmt);
 }
 
-void execute_query_string(string input_query) {
+void execute_query_string(string input_query, QueryResult* res) {
     input_query = trim_string(input_query);
 
     if (input_query.empty()) {
+        if (res) {
+            res->success = false;
+            res->message = "Error: Empty query.";
+        }
         cout << "Error: Empty query.\n";
         return;
     }
@@ -539,27 +544,37 @@ void execute_query_string(string input_query) {
     final_query[sizeof(final_query) - 1] = '\0';
 
     if (token_temp == "select") {
-        tokenize_select(final_query);
+        tokenize_select(final_query, res);
     }
     else if (token_temp == "create") {
         tokenize_create(final_query);
+        if (res) res->message = "Table created successfully";
     }
     else if (token_temp == "insert") {
         tokenize_insert(final_query);
+        if (res) res->message = "Row inserted successfully";
     }
     else if (token_temp == "show") {
         tokenize_show(final_query);
+        if (res) res->message = "Tables listed successfully";
     }
     else if (token_temp == "drop") {
         tokenize_drop(final_query);
+        if (res) res->message = "Table dropped successfully";
     }
     else if (token_temp == "update") {
         tokenize_update(final_query);
+        if (res) res->message = "Table updated successfully";
     }
     else if (token_temp == "delete") {
         tokenize_delete(final_query);
+        if (res) res->message = "Row(s) deleted successfully";
     }
     else {
+        if (res) {
+            res->success = false;
+            res->message = "Error: Wrong syntax or unsupported command.";
+        }
         cout << "\nError: Wrong syntax or unsupported command.\n";
         print_query_syntax_help();
     }
