@@ -25,12 +25,40 @@ static const std::size_t STORAGE_PAGE_SIZE = 4096;
 static const uint32_t INVALID_PAGE_ID = UINT32_MAX;
 static const uint16_t INVALID_SLOT_ID = UINT16_MAX;
 
+// --- NEW: Database Identity ---
+static const uint32_t HEMDB_MAGIC_NUMBER = 0x48454D44; // "HEMD" in Hex
+// ------------------------------
+
 enum PageType {
     PAGE_TYPE_INVALID = 0,
     PAGE_TYPE_TABLE_DATA = 1,
     PAGE_TYPE_BTREE_INTERNAL = 2,
     PAGE_TYPE_BTREE_LEAF = 3
 };
+
+// --- NEW: Page 0 Blueprint ---
+/*
+ * Page 0 is reserved strictly for this TableHeader.
+ * It is exactly 4096 bytes long and never holds user rows.
+ */
+struct TableHeader {
+    // 1. METADATA (16 bytes)
+    uint32_t magic_number;  // Must be HEMDB_MAGIC_NUMBER
+    uint32_t version;       // e.g., 1 (For v1.0)
+    uint32_t page_size;     // 4096
+    uint32_t root_page_id;  // B+ Tree root
+    
+    // 2. ALIGNMENT PADDING (80 bytes)
+    // Pads the metadata out to exactly 96 bytes to align the bitmap.
+    char padding[80];       
+
+    // 3. FREE SPACE BITMAP (4000 bytes)
+    // 4000 bytes * 8 bits = Tracks the Free/Full status of 32,000 pages.
+    // 0 = Page is completely empty (Free)
+    // 1 = Page contains data (Full)
+    uint8_t free_page_bitmap[4000]; 
+};
+// -----------------------------
 
 /*
  * RID (Record ID) is the new logical row address. tuple -- > [ page_id , slot_id ] 
