@@ -5,6 +5,7 @@
 #include "buffer_pool_manager.h"
 #include "data_page.h"
 #include "tuple_serializer.h"
+#include "BPtree.h"
 #include <iostream>
 #include <random>
 #include <iomanip>
@@ -58,10 +59,14 @@ void AuthManager::create_auth_table() {
 
     store_system_meta_data(temp);
 
-    // Create empty data file
+    // Create empty data file and B+ Tree
     std::string data_path = "./system/auth/data.dat";
     DiskManager dm(data_path);
     dm.open_or_create();
+    
+    // Note: BPtree implementation seems to assume "./table/TNAME/" path
+    // For simplicity, we'll store system indexes in the same place but prefixed with __sys_
+    BPtree index((char*)"__sys_auth");
     
     delete temp;
 }
@@ -117,6 +122,9 @@ bool AuthManager::register_user(const std::string& username, const std::string& 
     std::memcpy(target_buffer, page.data(), STORAGE_PAGE_SIZE);
     buffer_pool.unpin_page(target_page_id, true);
     buffer_pool.flush_page(target_page_id);
+
+    BPtree index((char*)"__sys_auth");
+    index.insert(id, RID(target_page_id, slot_id));
 
     meta->rec_count++;
     store_system_meta_data(meta);
