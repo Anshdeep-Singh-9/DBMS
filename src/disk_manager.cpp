@@ -1,6 +1,7 @@
 #include "disk_manager.h"
 
 #include <vector>
+#include <algorithm> // Added for std::find to prevent duplicate recycling
 
 /*
  * This file implements the new page-based disk access path.
@@ -68,7 +69,21 @@ uint32_t DiskManager::allocate_page() {
         return INVALID_PAGE_ID;
     }
 
-    // New pages are appended at the end of the file.
+    // 1. FREE LIST RECLAIM: Check the recycle bin first.
+    // If a page was completely emptied and deallocated, reuse it 
+    // instead of expanding the physical file.
+    if (!free_pages_.empty()) {
+        uint32_t recycled_id = free_pages_.back();
+        free_pages_.pop_back();
+        
+        // Wipe the recycled page on disk with zeros to ensure a clean slate
+        std::vector<char> empty_page(page_size_, 0);
+        write_page(recycled_id, &empty_page[0]);
+        
+        return recycled_id;
+    }
+
+    // 2. PHYSICAL EXPANSION: New pages are appended at the end of the file.
     // page_id is therefore just the current number of stored pages.
     // Layman version: a new page is simply added after the last existing page.
     const uint32_t new_page_id = page_count_unchecked();
@@ -90,6 +105,24 @@ uint32_t DiskManager::allocate_page() {
     }
 
     return new_page_id;
+}
+
+void DiskManager::deallocate_page(uint32_t page_id) {
+    // Edge Case 2: Prevent "Ghost Pages" (Out of bounds)
+    // If higher layers try to deallocate a page that doesn't physically exist, ignore it.
+    if (page_id >= page_count_unchecked()) {
+        return; 
+    }
+
+    // Edge Case 1: Prevent "Double Free" Corruption
+    // Search the vector to see if this page is already in the recycle bin.
+    if (std::find(free_pages_.begin(), free_pages_.end(), page_id) != free_pages_.end()) {
+        return; // It's already in the bin! Ignore the duplicate request.
+    }
+
+    // If it passes both safety checks, add the newly emptied page to the RAM-based stack 
+    // so the next allocate_page() call can safely recycle it.
+    free_pages_.push_back(page_id);
 }
 
 bool DiskManager::read_page(uint32_t page_id, char* buffer) {
