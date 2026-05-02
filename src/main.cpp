@@ -5,6 +5,7 @@
 #include "recovery_manager.h"
 #include "where.h"
 #include "auth.h"
+#include "utilities.h"
 
 #include <iostream>
 #include <cstdio>
@@ -188,6 +189,8 @@ void print_query_console_syntax() {
     print_small_line();
 }
 
+HistoryManager history_manager;
+
 void query_console_loop() {
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
@@ -198,11 +201,9 @@ void query_console_loop() {
         cout << DIM << "Type BACK or EXIT to return to main menu.\n\n" << RESET;
 
         print_query_console_syntax();
+        cout << "\n";
 
-        cout << BOLD << "\nminidb> " << RESET;
-
-        string query;
-        getline(cin, query);
+        string query = history_manager.readline(string(BOLD) + "minidb> " + RESET);
 
         string command = normalize_console_command(query);
 
@@ -211,7 +212,10 @@ void query_console_loop() {
             break;
         }
 
-        execute_query_string(query);
+        if (!query.empty()) {
+            history_manager.add_to_history(query);
+            execute_query_string(query);
+        }
     }
 }
 
