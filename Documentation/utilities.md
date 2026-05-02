@@ -19,6 +19,7 @@ The Query Console uses a custom `HistoryManager` to provide an enhanced terminal
 | **Backspace** | Delete the character to the left of the cursor. |
 | **Delete** | Delete the character at the cursor position. |
 | **Ctrl + Backspace** | Delete the entire word to the left of the cursor. |
+| **Alt + Backspace** | Clears the entire command. |
 | **Ctrl + C** | Interrupt the current process (standard signal handling). |
 | **Ctrl + D** | Exit the Query Console (if the line is empty). |
 
